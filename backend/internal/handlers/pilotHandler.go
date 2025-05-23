@@ -89,5 +89,7 @@ func (p *PilotHandler) PilotById(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Error with selecting pilot by id"})
 	}
 
+	pilot.Id = pilotId
+
 	return c.Status(200).JSON(fiber.Map{"pilot": pilot})
 }

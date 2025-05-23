@@ -14,7 +14,6 @@ func InitRoutes(
 	pilotRepo repository.PilotRepository,
 	droneRepo repository.DroneRepository,
 	applicationRepo repository.ApplicationRepository,
-	routesRepo repository.RoutesRepository,
 	zonesRepo repository.ZonesRepository,
 ) {
 	authorizedGroup := app.Group("/auth")
@@ -23,20 +22,18 @@ func InitRoutes(
 	pilot := app.Group("/pilot")
 	drone := authorizedGroup.Group("/drone")
 	application := authorizedGroup.Group("/application")
-	routes := authorizedGroup.Group("/routes")
 	zones := authorizedGroup.Group("/zones")
 
 	droneHandler := handlers.NewDroneHandler(droneRepo, *cfg)
 	pilotHandler := handlers.NewPilotHandler(pilotRepo, *cfg)
 	applicationHandler := handlers.NewApplicationHandler(applicationRepo, *cfg)
-	routesHandler := handlers.NewRoutesHandler(routesRepo, *cfg)
 	zonesHandler := handlers.NewZonesHandler(zonesRepo, *cfg)
 
 	pilot.Post("/sign-in", pilotHandler.SignIn)
 	pilot.Post("/sign-up", pilotHandler.SignUp)
 
 	drone.Post("/create", droneHandler.CreateDrone)
-	drone.Post("/pilot/:id", pilotHandler.PilotById)
+	drone.Get("/pilot", pilotHandler.PilotById)
 	drone.Get("/drone/:id", droneHandler.DroneById)
 	drone.Get("/drones", droneHandler.AllDrones)
 	drone.Delete("/delete/:id", droneHandler.DeleteDrone)
@@ -44,8 +41,9 @@ func InitRoutes(
 	application.Post("/create", applicationHandler.CreateApplication)
 	application.Delete("/delete/:id", applicationHandler.DeleteApplication)
 	application.Get("/status", applicationHandler.ApplicationStatus)
-
-	routes.Post("/create", routesHandler.CreateRoute)
+	application.Get("/applications", applicationHandler.AllApplications)
 
 	zones.Post("/create", zonesHandler.CreateZone)
+	zones.Get("/", zonesHandler.AllZones)
+	zones.Delete("/delete/:id", zonesHandler.DeleteZone)
 }

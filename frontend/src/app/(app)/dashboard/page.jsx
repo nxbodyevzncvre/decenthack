@@ -1,14 +1,15 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
-import { MapPin, User, Plane, AlertTriangle, Plus, Info, LogOut } from "lucide-react"
-import AddDrone from "@/app/components/AddDrone/AddDrone.jsx"
-import DangerZones from "@/app/components/DangerZones/DangerZones.jsx"
-import DroneInfo from "@/app/components/DroneInfo/DroneInfo.jsx"
-import DroneMap from "@/app/components/DroneMap/DroneMap.jsx"
-import FlightApplications from "@/app/components/FlightApplications/FlightApplications.jsx"
-import { useRouter } from 'next/navigation'
+    import { useState, useEffect } from "react"
+    import Link from "next/link"
+    import { MapPin, User, Plane, AlertTriangle, Plus, Info, LogOut } from "lucide-react"
+    import AddDrone from "@/app/components/AddDrone/AddDrone.jsx"
+    import DangerZones from "@/app/components/DangerZones/DangerZones.jsx"
+    import DroneInfo from "@/app/components/DroneInfo/DroneInfo.jsx"
+    import DroneMap from "@/app/components/DroneMap/DroneMap.jsx"
+    import FlightApplications from "@/app/components/FlightApplications/FlightApplications.jsx"
+    import { useRouter } from 'next/navigation'
+    import axios from "axios"
 
 
 
@@ -17,13 +18,40 @@ import { useRouter } from 'next/navigation'
 
 
 
-export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState("map")
-  const router = useRouter();
-  const logout = () =>{
-    localStorage.removeItem("token");
-    router.push("/sign-in");
-  }
+    export default function Dashboard() {
+        const [activeTab, setActiveTab] = useState("map")
+        const [name, setName] = useState("")
+        const [error, setError] = useState(null);
+        
+        // console.log(token);
+        
+        
+        useEffect(()=>{
+            const token = localStorage.getItem("token");
+
+            const getData = async() =>{
+                try {
+                    const response = await axios.get("http://localhost:5050/auth/drone/pilot",
+                        { headers:{Authorization: `Bearer ${token}` }})
+                        
+                    console.log(response.data.pilot.firstname + " " + response.data.pilot.lastname)
+                    setName(response.data.pilot.firstname + " " + response.data.pilot.lastname )
+                } catch (err) {
+                    setError(err.response?.data?.message || "Произошла ошибка при получении пользователя")
+                    console.log(error)
+                }
+            }
+            getData()
+        },[])
+    
+        
+
+
+    const router = useRouter();
+    const logout = () =>{
+        localStorage.removeItem("token");
+        router.push("/sign-in");
+    }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -34,12 +62,10 @@ export default function Dashboard() {
               <h1 className="text-xl font-semibold text-gray-900">Drone Dashboard</h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">Иван Петров</span>
-              <Link href="/">
+              <span className="text-sm text-gray-600">{name}</span>
                 <button className="p-2 rounded-full text-gray-500 hover:bg-gray-100" onClick={logout}>
-                  <LogOut className="h-5 w-5" />
+                    <LogOut className="h-5 w-5" />
                 </button>
-              </Link>
             </div>
           </div>
         </div>

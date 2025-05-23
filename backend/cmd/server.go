@@ -29,9 +29,8 @@ func main() {
 	pilotRepo := &repository.PilotRepository{DB: db}
 	applicationRepo := &repository.ApplicationRepository{DB: db}
 	zonesRepo := &repository.ZonesRepository{DB: db}
-	routesRepo := &repository.RoutesRepository{DB: db}
 
-	routes.InitRoutes(app, cfg, *pilotRepo, *droneRepo, *applicationRepo, *routesRepo, *zonesRepo)
+	routes.InitRoutes(app, cfg, *pilotRepo, *droneRepo, *applicationRepo, *zonesRepo)
 
 	err = app.Listen(cfg.Port)
 	if err != nil {
