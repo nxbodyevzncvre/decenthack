@@ -34,14 +34,15 @@ func InitRoutes(
 
 	pilot.Post("/sign-in", pilotHandler.SignIn)
 	pilot.Post("/sign-up", pilotHandler.SignUp)
-	pilot.Get("/:id", pilotHandler.PilotById)
 
 	drone.Post("/create", droneHandler.CreateDrone)
-	drone.Get("/:id", droneHandler.DroneById)
-	drone.Delete("/:id", droneHandler.DeleteDrone)
+	drone.Post("/pilot/:id", pilotHandler.PilotById)
+	drone.Get("/drone/:id", droneHandler.DroneById)
+	drone.Get("/drones", droneHandler.AllDrones)
+	drone.Delete("/delete/:id", droneHandler.DeleteDrone)
 
 	application.Post("/create", applicationHandler.CreateApplication)
-	application.Delete("/:id", applicationHandler.DeleteApplication)
+	application.Delete("/delete/:id", applicationHandler.DeleteApplication)
 	application.Get("/status", applicationHandler.ApplicationStatus)
 
 	routes.Post("/create", routesHandler.CreateRoute)

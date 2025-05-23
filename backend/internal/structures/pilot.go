@@ -1,10 +1,10 @@
 package structures
 
 type Pilot struct {
-	id         int    `json:"pilot_id"`
-	firstname  string `json:"firstname"`
-	lastname   string `json:"lastname"`
-	middlename string `json:"middlename"`
-	phone      string `json:"phone"`
-	password   string `json:"password"`
+	Id         int    `json:"pilot_id, omitempty"`
+	Firstname  string `json:"firstname, omitempty"`
+	Lastname   string `json:"lastname, omitempty"`
+	Middlename string `json:"middlename, omitempty"`
+	Phone      string `json:"phone"`
+	Password   string `json:"password"`
 }

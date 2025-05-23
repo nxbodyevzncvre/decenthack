@@ -1,7 +1,8 @@
 package structures
 
 type Drone struct {
-	id            int    `json:"drone_id"`
-	serial_number string `json:"serial_number"`
-	model_id      int    `json:"model_id"`
+	Id            int    `json:"drone_id"`
+	Serial_number string `json:"serial_number"`
+	Model_name    string `json:"model_name"`
+	Brand_name    string `json:"brand_name"`
 }

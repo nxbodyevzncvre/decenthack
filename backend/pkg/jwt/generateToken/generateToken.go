@@ -9,7 +9,7 @@ import (
 func GenerateAccessToken(id int, secretKey string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId": id,
-		"exp":    time.Now().Add(time.Minute * 15).Unix(),
+		"exp":    time.Now().Add(time.Minute * 60).Unix(),
 		"type":   "access",
 	})
 

@@ -19,9 +19,10 @@ func main() {
 	}
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
-		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders: "Origin, Content-Type, Accept",
+		AllowOrigins:     "http://localhost:3000",
+		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowCredentials: true,
 	}))
 
 	droneRepo := &repository.DroneRepository{DB: db}
@@ -32,7 +33,7 @@ func main() {
 
 	routes.InitRoutes(app, cfg, *pilotRepo, *droneRepo, *applicationRepo, *routesRepo, *zonesRepo)
 
-	err = app.Listen(":8080")
+	err = app.Listen(cfg.Port)
 	if err != nil {
 		log.Error(err)
 	}
