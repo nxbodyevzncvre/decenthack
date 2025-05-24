@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2/log"
-	"github.com/qwaq-dev/decenthack/internal/structures"
+	"github.com/nxbodyevzncvre/decenthack/internal/structures"
 )
 
 type ApplicationRepository struct {

@@ -6,8 +6,8 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gofiber/fiber/v2/log"
-	"github.com/qwaq-dev/decenthack/internal/config"
-	"github.com/qwaq-dev/decenthack/pkg/logger/sl"
+	"github.com/nxbodyevzncvre/decenthack/internal/config"
+	"github.com/nxbodyevzncvre/decenthack/pkg/logger/sl"
 )
 
 func InitDataBase(cfg config.Database) (*sql.DB, error) {

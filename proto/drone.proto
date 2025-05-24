@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package drone;
+
+// 🔽 УКАЖИ go_package: путь должен соответствовать твоему модулю Go
+option go_package = "backend/dronepb;dronepb";
+
+service DroneService {
+  rpc SendCoordinates(CoordinatesBatchRequest) returns (CoordinatesResponse);
+}
+
+message Coordinate {
+  double latitude = 1;
+  double longitude = 2;
+  double altitude = 3;
+  int32 point_order = 4;
+}
+
+message CoordinatesBatchRequest {
+  int32 drone_id = 1;
+  repeated Coordinate coordinates = 2;
+}
+
+message CoordinatesResponse {
+  string status = 1;
+}

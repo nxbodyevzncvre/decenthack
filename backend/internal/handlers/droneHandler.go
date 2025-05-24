@@ -5,9 +5,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
-	"github.com/qwaq-dev/decenthack/internal/config"
-	"github.com/qwaq-dev/decenthack/internal/repository"
-	"github.com/qwaq-dev/decenthack/internal/structures"
+	"github.com/nxbodyevzncvre/decenthack/internal/config"
+	"github.com/nxbodyevzncvre/decenthack/internal/repository"
+	"github.com/nxbodyevzncvre/decenthack/internal/structures"
 )
 
 type DroneHandler struct {

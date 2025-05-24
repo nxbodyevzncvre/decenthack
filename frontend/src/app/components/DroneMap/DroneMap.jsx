@@ -4,6 +4,7 @@ import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMapEvents } from "react-leaflet";
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import DroneTracker from "@/app/components/DroneTracker/DroneTracker.jsx"
 
 
 import "leaflet/dist/leaflet.css";
@@ -132,19 +133,21 @@ export default function DroneMap() {
       </div>
       
       <div className="p-4 border-b border-gray-200">
+        
         <h2 className="text-lg font-medium text-gray-900">Интерактивная карта дронов</h2>
         <p className="text-sm text-gray-600">Отслеживайте местоположение всех дронов в реальном времени</p>
       </div>
       
       <div className="p-4">
         <div className="bg-gray-100 rounded-lg p-4">
-          <div className="text-center">
+          <DroneTracker/>
+          {/* <div className="text-center">
             <MapPin className="h-12 w-12 text-gray-400 mx-auto" />
             <p className="mt-2 text-sm text-gray-600">Интерактивная карта на основе Leaflet.js</p>
             <p className="text-xs text-red-500 mt-2">
               Внимание: {dangerZones.length} опасных зон на карте!
             </p>
-          </div>
+          </div> */}
         </div>
       </div>
       

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { Delete } from "lucide-react";
+import { Delete, Plane, RefreshCw } from "lucide-react";
 
 export default function DroneInfo() {
   const [drones, setDrones] = useState([]);
@@ -44,9 +44,20 @@ export default function DroneInfo() {
     }
   };
 
-  if (loading) return <p>Загрузка...</p>;
+  if (loading && drones !== null) return  <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="p-8 text-center">
+          <RefreshCw className="h-8 w-8 text-gray-400 mx-auto animate-spin" />
+          <p className="mt-2 text-sm text-gray-600">Загрузка дронов...</p>
+        </div>
+      </div>;
+
   if (error) return <p className="text-red-500">{error}</p>;
-  if (drones === null) return <p>У вас отсутствуют дроны</p>
+  if (drones === null) return <div className="p-8 text-center">
+      <Plane className="h-12 w-12 text-gray-400 mx-auto" />
+      <h3 className="mt-2 text-sm font-medium text-gray-900">Нет дронов</h3>
+      <p className="mt-1 text-sm text-gray-500">Добавьте свой первый дрон для начала работы</p>
+    </div>
+    
 
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden">

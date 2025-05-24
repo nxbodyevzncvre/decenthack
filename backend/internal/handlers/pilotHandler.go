@@ -3,11 +3,11 @@ package handlers
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
-	"github.com/qwaq-dev/decenthack/internal/config"
-	"github.com/qwaq-dev/decenthack/internal/repository"
-	"github.com/qwaq-dev/decenthack/internal/structures"
-	generatetoken "github.com/qwaq-dev/decenthack/pkg/jwt/generateToken"
-	"github.com/qwaq-dev/decenthack/pkg/logger/sl"
+	"github.com/nxbodyevzncvre/decenthack/internal/config"
+	"github.com/nxbodyevzncvre/decenthack/internal/repository"
+	"github.com/nxbodyevzncvre/decenthack/internal/structures"
+	generatetoken "github.com/nxbodyevzncvre/decenthack/pkg/jwt/generateToken"
+	"github.com/nxbodyevzncvre/decenthack/pkg/logger/sl"
 	"golang.org/x/crypto/bcrypt"
 )
 

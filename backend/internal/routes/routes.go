@@ -2,10 +2,10 @@ package routes
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/qwaq-dev/decenthack/internal/config"
-	"github.com/qwaq-dev/decenthack/internal/handlers"
-	"github.com/qwaq-dev/decenthack/internal/repository"
-	"github.com/qwaq-dev/decenthack/pkg/jwt/middleware"
+	"github.com/nxbodyevzncvre/decenthack/internal/config"
+	"github.com/nxbodyevzncvre/decenthack/internal/handlers"
+	"github.com/nxbodyevzncvre/decenthack/internal/repository"
+	"github.com/nxbodyevzncvre/decenthack/pkg/jwt/middleware"
 )
 
 func InitRoutes(
