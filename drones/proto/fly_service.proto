@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package flight;
+
+option go_package = "github.com/qwaq-dev/drones/proto/flight";
+
+import "google/protobuf/timestamp.proto";
+
+// Сервис для коммуникации между Flight Processor и Main Backend
+service FlightNotificationService {
+  // Уведомление об изменении статуса заявки
+  rpc NotifyStatusUpdate(StatusUpdateRequest) returns (StatusUpdateResponse);
+  
+  // Уведомление о начале полета
+  rpc NotifyFlightStarted(FlightStartedRequest) returns (FlightStartedResponse);
+  
+  rpc UpdateDronePosition(DronePositionRequest) returns (DronePositionResponse);
+  
+  rpc NotifyFlightCompleted(FlightCompletedRequest) returns (FlightCompletedResponse);
+  
+  rpc NotifyRestrictedZoneProximity(RestrictedZoneAlertRequest) returns (RestrictedZoneAlertResponse);
+}
+
+// Запрос на обновление статуса
+message StatusUpdateRequest {
+  int32 application_id = 1;
+  string status = 2;
+  string message = 3;
+  string rejection_reason = 4;
+  google.protobuf.Timestamp timestamp = 5;
+}
+
+message StatusUpdateResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// Запрос о начале полета
+message FlightStartedRequest {
+  int32 application_id = 1;
+  int32 drone_id = 2;
+  int32 pilot_id = 3;
+  repeated RoutePoint route = 4;
+  DronePosition current_position = 5;
+  google.protobuf.Timestamp start_time = 6;
+  google.protobuf.Timestamp estimated_end_time = 7;
+}
+
+message FlightStartedResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// Запрос на обновление позиции
+message DronePositionRequest {
+  int32 application_id = 1;
+  int32 drone_id = 2;
+  double latitude = 3;
+  double longitude = 4;
+  double altitude = 5;
+  double speed = 6;
+  double heading = 7;
+  double route_progress = 8;
+  google.protobuf.Timestamp timestamp = 9;
+}
+
+message DronePositionResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// Запрос о завершении полета
+message FlightCompletedRequest {
+  int32 application_id = 1;
+  int32 drone_id = 2;
+  DronePosition final_position = 3;
+  google.protobuf.Timestamp completion_time = 4;
+  string completion_status = 5; // completed, cancelled, emergency_landing
+}
+
+message FlightCompletedResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// 🚨 НОВЫЕ СООБЩЕНИЯ: Уведомления о запретных зонах
+message RestrictedZoneAlertRequest {
+  int32 application_id = 1;
+  int32 drone_id = 2;
+  string zone_name = 3;
+  double zone_latitude = 4;
+  double zone_longitude = 5;
+  int32 zone_radius = 6;
+  string alert_level = 7; // INFO, WARNING, DANGER
+  double distance = 8;
+  DronePosition drone_position = 9;
+  google.protobuf.Timestamp timestamp = 10;
+}
+
+message RestrictedZoneAlertResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// Вспомогательные сообщения
+message RoutePoint {
+  int32 id = 1;
+  double latitude = 2;
+  double longitude = 3;
+  double altitude = 4;
+  int32 point_order = 5;
+  int32 application_id = 6;
+}
+
+message DronePosition {
+  int32 application_id = 1;
+  int32 drone_id = 2;
+  double latitude = 3;
+  double longitude = 4;
+  double altitude = 5;
+  double speed = 6;
+  double heading = 7;
+  double route_progress = 8;
+  google.protobuf.Timestamp timestamp = 9;
+}

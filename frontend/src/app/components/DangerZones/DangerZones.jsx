@@ -238,6 +238,25 @@ export default function AddDangerZone() {
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
+                <Circle
+                        key={"baza"}
+                        center={[51.11990, 71.48048]}
+                        radius={200}
+                        pathOptions={{
+                          color: "black",
+                          fillColor: "black",
+                          fillOpacity: 0.8,
+                          weight: 2,
+                        }}
+                      >
+                        <Popup>
+                          <div>
+                            <h4 className="font-medium text-black"> База дронов</h4>
+                            <p className="text-sm text-black">Радиус: 12</p>
+                            <p className="text-sm text-black font-medium">Запуск осуществляется отсюда</p>
+                          </div>
+                        </Popup>
+                      </Circle>
 
                 {/* Existing danger zones */}
                 {zones.map((zone) => (

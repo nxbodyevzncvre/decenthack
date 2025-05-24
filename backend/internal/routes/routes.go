@@ -46,4 +46,15 @@ func InitRoutes(
 	zones.Post("/create", zonesHandler.CreateZone)
 	zones.Get("/", zonesHandler.AllZones)
 	zones.Delete("/delete/:id", zonesHandler.DeleteZone)
+
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"status": "ok",
+			"services": fiber.Map{
+				"http":      "running",
+				"grpc":      "running",
+				"websocket": "running",
+			},
+		})
+	})
 }

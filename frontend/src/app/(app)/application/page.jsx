@@ -2,19 +2,21 @@
 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import { ArrowLeft, MapPin, AlertTriangle } from "lucide-react"
+import { ArrowLeft, AlertTriangle, CheckCircle, XCircle } from "lucide-react"
 import L from "leaflet"
-import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMapEvents } from "react-leaflet"
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMapEvents } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/navigation"
 import axios from "axios"
 
 export default function CreateApplication() {
   const [step, setStep] = useState(1)
-  const center = [51.505, -0.09]
   const [drones, setDrones] = useState([])
+  const [dangerZones, setDangerZones] = useState([])
   const [loading, setLoading] = useState(true)
+  const [zonesLoading, setZonesLoading] = useState(false)
   const [error, setError] = useState("")
+  const [intersectionCheck, setIntersectionCheck] = useState(null)
   const router = useRouter()
 
   // Form data states
@@ -24,23 +26,20 @@ export default function CreateApplication() {
   const [maxHeight, setMaxHeight] = useState("")
   const [selectedPosition, setSelectedPosition] = useState(null)
 
-  // Ref for accessing marker position
   const markerPositionRef = useRef(null)
 
   const prepareData = () => {
     const data = {
-        start_date: startDate,
-        end_date: endDate,
-        status: "Pending",  
-        drone_id: Number(selectedDrone),
-        latitude: selectedPosition ? parseFloat(selectedPosition[0].toFixed(8)): null,
-        longtitude: selectedPosition ? parseFloat(selectedPosition[1].toFixed(8)): null,
-        altitude: Number.parseInt(maxHeight),
+      start_date: startDate,
+      end_date: endDate,
+      status: "Pending",
+      drone_id: Number(selectedDrone),
+      latitude: selectedPosition ? Number.parseFloat(selectedPosition[0].toFixed(8)) : null,
+      longtitude: selectedPosition ? Number.parseFloat(selectedPosition[1].toFixed(8)) : null,
+      altitude: Number.parseInt(maxHeight),
     }
 
     console.log("Prepared data:", data)
-    console.log(drones)
-    console.log(selectedDrone, "1923912391293")
     return data
   }
 
@@ -56,7 +55,6 @@ export default function CreateApplication() {
       })
       console.log("Submission successful:", response.data)
       router.push("/dashboard")
-
     } catch (error) {
       console.error("Error submitting data:", error)
       setError("Ошибка при отправке заявки")
@@ -66,6 +64,18 @@ export default function CreateApplication() {
   useEffect(() => {
     fetchDrones()
   }, [])
+
+  useEffect(() => {
+    if (step === 2) {
+      fetchDangerZones()
+    }
+  }, [step])
+
+  useEffect(() => {
+    if (selectedPosition && dangerZones.length > 0) {
+      checkIntersection()
+    }
+  }, [selectedPosition, dangerZones])
 
   const fetchDrones = async () => {
     try {
@@ -82,15 +92,60 @@ export default function CreateApplication() {
       setLoading(false)
     }
   }
-  
 
-  const fillBlueOptions = {
-    color: "red",
-    fillColor: "none",
-    fillOpacity: 0.5,
+  const fetchDangerZones = async () => {
+    setZonesLoading(true)
+    try {
+      const token = localStorage.getItem("token")
+      const response = await axios.get("http://localhost:5050/auth/zones", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      setDangerZones(response.data.zones || [])
+    } catch (err) {
+      console.error("Error fetching danger zones:", err)
+      setDangerZones([])
+    } finally {
+      setZonesLoading(false)
+    }
   }
 
-  const redOptions = { color: "red" }
+  const checkIntersection = () => {
+    if (!selectedPosition) {
+      setIntersectionCheck(null)
+      return
+    }
+
+    const [lat, lng] = selectedPosition
+    let hasIntersection = false
+    const intersectedZones = []
+
+    for (const zone of dangerZones) {
+      const distance = calculateDistance(lat, lng, zone.latitude, zone.longtitude)
+      if (distance <= zone.radius) {
+        hasIntersection = true
+        intersectedZones.push(zone)
+      }
+    }
+
+    setIntersectionCheck({
+      hasIntersection,
+      intersectedZones,
+      checkedPosition: selectedPosition,
+    })
+  }
+
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000 // Радиус Земли в метрах
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLon = ((lon2 - lon1) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
 
   const customIcon = L.icon({
     iconUrl: "/pin.svg",
@@ -128,7 +183,6 @@ export default function CreateApplication() {
 
   const nextStep = () => {
     if (step === 1) {
-      // Validate first step
       if (!selectedDrone || !startDate || !endDate || !maxHeight) {
         setError("Пожалуйста, заполните все обязательные поля")
         return
@@ -138,16 +192,20 @@ export default function CreateApplication() {
         return
       }
     }
+    if (step === 2) {
+      if (intersectionCheck?.hasIntersection) {
+        setError("Нельзя продолжить: выбранное местоположение пересекается с опасными зонами")
+        return
+      }
+    }
     setError("")
     setStep(step + 1)
-    console.log("Current data:", { selectedDrone, startDate, endDate, maxHeight, selectedPosition }, drones)
   }
 
   const prevStep = () => {
     setStep(step - 1)
   }
 
-  // Get selected drone details for display
   const getSelectedDroneDetails = () => {
     const drone = drones.find((d) => d.drone_id == selectedDrone)
     return drone ? `${drone.serial_number} (${drone.model_name})` : "Не выбран"
@@ -157,12 +215,6 @@ export default function CreateApplication() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>Загрузка...</p>
-      </div>
-    )
-  if (error && drones.length === 0)
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-red-500">{error}</p>
       </div>
     )
 
@@ -319,15 +371,47 @@ export default function CreateApplication() {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
-                      <Marker position={[51.12, 71.43]} icon={customIcon}>
+                      <Circle
+                        key={"baza"}
+                        center={[51.11990, 71.48048]}
+                        radius={200}
+                        pathOptions={{
+                          color: "black",
+                          fillColor: "black",
+                          fillOpacity: 0.8,
+                          weight: 2,
+                        }}
+                      >
                         <Popup>
-                          Центр карты <br /> Кликните в любом месте для выбора локации.
+                          <div>
+                            <h4 className="font-medium text-black"> База дронов</h4>
+                            <p className="text-sm text-black">Радиус: 12</p>
+                            <p className="text-sm text-black font-medium">Запуск осуществляется отсюда</p>
+                          </div>
                         </Popup>
-                      </Marker>
-                      <Circle center={center} pathOptions={fillBlueOptions} radius={200} />
-                      <CircleMarker center={[51.12, 71.43]} pathOptions={redOptions} radius={20}>
-                        <Popup>Опасная зона</Popup>
-                      </CircleMarker>
+                      </Circle>
+                      {dangerZones.map((zone) => (
+                        <Circle
+                          key={zone.restrictedZone_id}
+                          center={[zone.latitude, zone.longtitude]}
+                          radius={zone.radius}
+                          pathOptions={{
+                            color: "red",
+                            fillColor: "red",
+                            fillOpacity: 0.2,
+                            weight: 2,
+                          }}
+                        >
+                        <Popup>
+                          <div>
+                            <h4 className="font-medium text-red-600">⚠️ {zone.zone_name}</h4>
+                            <p className="text-sm text-gray-600">Радиус: {zone.radius}м</p>
+                            <p className="text-sm text-gray-600">Высота: {zone.altitude}м</p>
+                            <p className="text-sm text-red-600 font-medium">Полный запрет полётов</p>
+                          </div>
+                        </Popup>
+                      </Circle>
+                    ))}
                       <LocationMarker />
                     </MapContainer>
                   </div>
@@ -355,36 +439,136 @@ export default function CreateApplication() {
             <div className="p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-6">Проверка опасных зон</h2>
 
-              <div className="bg-gray-100 rounded-lg h-80 mb-6 flex items-center justify-center">
-                <div className="text-center">
-                  <MapPin className="h-12 w-12 text-gray-400 mx-auto" />
-                  <p className="mt-2 text-sm text-gray-600">Карта с отмеченными опасными зонами</p>
-                  {selectedPosition && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Проверяем координаты: {selectedPosition[0].toFixed(5)}, {selectedPosition[1].toFixed(5)}
-                    </p>
+              {zonesLoading ? (
+                <div className="bg-gray-100 rounded-lg h-80 mb-6 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                    <p className="mt-2 text-sm text-gray-600">Загрузка опасных зон...</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-100 rounded-lg h-80 mb-6 overflow-hidden">
+                  <MapContainer center={[51.12, 71.43]} zoom={13} scrollWheelZoom={true} className="h-full w-full">
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <Circle
+                        key={"baza"}
+                        center={[51.11990, 71.48048]}
+                        radius={200}
+                        pathOptions={{
+                          color: "black",
+                          fillColor: "black",
+                          fillOpacity: 0.8,
+                          weight: 2,
+                        }}
+                      >
+                        <Popup>
+                          <div>
+                            <h4 className="font-medium text-black"> База дронов</h4>
+                            <p className="text-sm text-black">Радиус: 12</p>
+                            <p className="text-sm text-black font-medium">Запуск осуществляется отсюда</p>
+                          </div>
+                        </Popup>
+                      </Circle>
+
+                    {/* Опасные зоны */}
+                    {dangerZones.map((zone) => (
+                      <Circle
+                        key={zone.restrictedZone_id}
+                        center={[zone.latitude, zone.longtitude]}
+                        radius={zone.radius}
+                        pathOptions={{
+                          color: "red",
+                          fillColor: "red",
+                          fillOpacity: 0.2,
+                          weight: 2,
+                        }}
+                      >
+                        <Popup>
+                          <div>
+                            <h4 className="font-medium text-red-600">⚠️ {zone.zone_name}</h4>
+                            <p className="text-sm text-gray-600">Радиус: {zone.radius}м</p>
+                            <p className="text-sm text-gray-600">Высота: {zone.altitude}м</p>
+                            <p className="text-sm text-red-600 font-medium">Полный запрет полётов</p>
+                          </div>
+                        </Popup>
+                      </Circle>
+                    ))}
+
+                    {/* Выбранная позиция */}
+                    {selectedPosition && (
+                      <Marker position={selectedPosition} icon={customIcon}>
+                        <Popup>
+                          Планируемое местоположение полёта
+                          <br />
+                          {selectedPosition[0].toFixed(5)}, {selectedPosition[1].toFixed(5)}
+                        </Popup>
+                      </Marker>
+                    )}
+                  </MapContainer>
+                </div>
+              )}
+
+              {selectedPosition && (
+                <div className="mb-6">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Проверяем координаты: {selectedPosition[0].toFixed(5)}, {selectedPosition[1].toFixed(5)}
+                  </p>
+
+                  {intersectionCheck === null ? (
+                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <AlertTriangle className="h-5 w-5 text-yellow-400" />
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm text-yellow-700">Проверка пересечений с опасными зонами...</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : intersectionCheck.hasIntersection ? (
+                    <div className="bg-red-50 border-l-4 border-red-400 p-4">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <XCircle className="h-5 w-5 text-red-400" />
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm text-red-700 font-medium">
+                            Внимание! Выбранное местоположение пересекается с опасными зонами:
+                          </p>
+                          <ul className="mt-2 text-sm text-red-600">
+                            {intersectionCheck.intersectedZones.map((zone) => (
+                              <li key={zone.restrictedZone_id} className="flex items-center">
+                                <span className="mr-2">•</span>
+                                {zone.zone_name} (радиус: {zone.radius}м)
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="mt-2 text-sm text-red-700">
+                            Полёт в этой зоне запрещен. Выберите другое местоположение.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-green-50 border-l-4 border-green-400 p-4">
+                      <div className="flex">
+                        <div className="flex-shrink-0">
+                          <CheckCircle className="h-5 w-5 text-green-400" />
+                        </div>
+                        <div className="ml-3">
+                          <p className="text-sm text-green-700">
+                            Отлично! Выбранное местоположение не пересекается с опасными зонами. Полёт разрешен.
+                          </p>
+                          <p className="text-sm text-green-600 mt-1">Проверено {dangerZones.length} опасных зон.</p>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-
-              <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path
-                        fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-green-700">
-                      Отлично! Выбранное местоположение не пересекается с опасными зонами. Полёт разрешен.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              )}
 
               <div className="mt-6 flex justify-between">
                 <button
@@ -397,7 +581,12 @@ export default function CreateApplication() {
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  disabled={intersectionCheck?.hasIntersection}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 ${
+                    intersectionCheck?.hasIntersection
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-gray-900 hover:bg-gray-800"
+                  }`}
                 >
                   Продолжить
                 </button>
@@ -442,6 +631,23 @@ export default function CreateApplication() {
                   </div>
                 </div>
               </div>
+
+              {/* Результат проверки безопасности */}
+              {intersectionCheck && !intersectionCheck.hasIntersection && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <CheckCircle className="h-5 w-5 text-green-400" />
+                    </div>
+                    <div className="ml-3">
+                      <h4 className="text-sm font-medium text-green-800">Проверка безопасности пройдена</h4>
+                      <p className="text-sm text-green-700 mt-1">
+                        Местоположение не пересекается с {dangerZones.length} опасными зонами
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
                 <div className="flex">

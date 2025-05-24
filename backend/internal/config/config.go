@@ -15,7 +15,7 @@ type Config struct {
 }
 
 type Server struct {
-	Port string `yaml:"port" env-default:":8080"`
+	Port string `yaml:"port" env-default:":5050"`
 }
 
 type Database struct {
