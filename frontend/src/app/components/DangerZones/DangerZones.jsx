@@ -165,15 +165,6 @@ export default function AddDangerZone() {
       {/* Form */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-200">
-          <Link href="/dashboard" className="inline-block mb-4">
-            <button
-              type="button"
-              className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Главное меню
-            </button>
-          </Link>
           <h2 className="text-lg font-medium text-gray-900">Добавление опасной зоны</h2>
           <p className="text-sm text-gray-600">Создайте новую зону с ограничениями для полётов дронов</p>
         </div>

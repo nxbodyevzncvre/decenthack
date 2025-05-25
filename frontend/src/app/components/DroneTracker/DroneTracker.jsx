@@ -116,7 +116,7 @@ export default function DroneTracker() {
           const data = JSON.parse(event.data)
           handleMessage(data)
         } catch (error) {
-          console.error("Error parsing WebSocket message:", error)
+          console.log("Error parsing WebSocket message:", error)
         }
       }
 
@@ -144,7 +144,7 @@ export default function DroneTracker() {
         if (connectionAttemptsRef.current === 0) {
           addMessage("❌ Ошибка WebSocket подключения", "connection")
         }
-        console.error("WebSocket error:", error)
+        console.log("WebSocket error:", error)
       }
     } catch (error) {
       setIsConnecting(false)
