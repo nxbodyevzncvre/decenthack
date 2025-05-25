@@ -1,30 +1,117 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { MapContainer, TileLayer, useMap } from "react-leaflet"
-import { Plane, Battery, MapPin, Navigation, Clock, Signal, Route, Wifi, WifiOff, Play, Square } from "lucide-react"
+import { MapContainer, TileLayer, useMap, Circle, Popup } from "react-leaflet"
+import {
+  Plane,
+  Battery,
+  MapPin,
+  Navigation,
+  Clock,
+  Signal,
+  Route,
+  Wifi,
+  WifiOff,
+  Play,
+  Square,
+  RefreshCw,
+} from "lucide-react"
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
-import Toast from "@/app/components/Toast/Toast.jsx" // путь к вашему Toast компоненту
+import Toast from "@/app/components/Toast/Toast.jsx"
+import axios from "axios"
+import { now } from "lodash"
+
+// В начале файла, добавить функцию для получения иконки статуса
+const getStatusIcon = (status) => {
+  switch (status?.toLowerCase()) {
+    case "approved":
+    case "одобрена":
+      return "✅"
+    case "rejected":
+    case "отклонена":
+      return "❌"
+    case "pending":
+    case "на рассмотрении":
+      return "⏳"
+    case "cancelled":
+    case "отменена":
+      return "🚫"
+    case "in_progress":
+    case "в процессе":
+      return "🔄"
+    default:
+      return "📋"
+  }
+}
+
+// Добавить функцию для получения иконки погоды после функции getStatusIcon:
+const getWeatherIcon = (weatherMain) => {
+  switch (weatherMain?.toLowerCase()) {
+    case "clear":
+      return "☀️"
+    case "clouds":
+      return "☁️"
+    case "rain":
+      return "🌧️"
+    case "snow":
+      return "❄️"
+    case "thunderstorm":
+      return "⛈️"
+    case "drizzle":
+      return "🌦️"
+    case "mist":
+    case "fog":
+      return "🌫️"
+    default:
+      return "🌤️"
+  }
+}
+
+const getWindDirection = (degrees) => {
+  const directions = ["С", "СВ", "В", "ЮВ", "Ю", "ЮЗ", "З", "СЗ"]
+  const index = Math.round(degrees / 45) % 8
+  return directions[index]
+}
+
+const getFlightConditions = (weather) => {
+  if (!weather) return { status: "unknown", text: "Нет данных", color: "text-gray-600" }
+
+  const { wind, main, weather: weatherArray } = weather
+  const windSpeed = wind?.speed || 0
+  const temp = main?.temp || 0
+  const weatherMain = weatherArray?.[0]?.main?.toLowerCase()
+
+  // Критерии для полетов дронов
+  if (windSpeed > 8 || temp < -15 || temp > 35 || weatherMain === "thunderstorm") {
+    return { status: "bad", text: "Неблагоприятные", color: "text-red-600" }
+  } else if (windSpeed > 5 || temp < -5 || temp > 30 || weatherMain === "rain" || weatherMain === "snow") {
+    return { status: "caution", text: "Осторожно", color: "text-yellow-600" }
+  } else {
+    return { status: "good", text: "Благоприятные", color: "text-green-600" }
+  }
+}
 
 export default function DroneTracker() {
+  // Добавить состояние для погодных данных в начале компонента:
+  const [weatherData, setWeatherData] = useState(null)
+  const [weatherLoading, setWeatherLoading] = useState(false)
   const [drones, setDrones] = useState(new Map())
   const [selectedDrone, setSelectedDrone] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [dangerZones, setDangerZones] = useState([])
   const [messages, setMessages] = useState([])
-  const [showTrail, setShowTrail] = useState(true)
-  const [maxTrailPoints, setMaxTrailPoints] = useState(50)
-  const [connectionAttempts, setConnectionAttempts] = useState(0)
   const [toast, setToast] = useState({ show: false, message: "", type: "success" })
 
   const wsRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
   const messageIdRef = useRef(0)
   const droneMarkers = useRef(new Map())
-  const droneTrails = useRef(new Map())
   const droneAnimations = useRef(new Map())
   const mapRef = useRef(null)
+  const connectionAttemptsRef = useRef(0)
+  const isConnectingRef = useRef(false)
 
   const center = [51.12, 71.43]
 
@@ -60,11 +147,14 @@ export default function DroneTracker() {
     setMessages((prev) => [newMessage, ...prev.slice(0, 49)])
   }, [])
 
+  // Исправленная функция подключения без зависимости от состояния
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    // Предотвращаем множественные подключения
+    if (wsRef.current?.readyState === WebSocket.OPEN || isConnectingRef.current) {
       return
     }
 
+    isConnectingRef.current = true
     setIsConnecting(true)
 
     try {
@@ -73,7 +163,8 @@ export default function DroneTracker() {
       wsRef.current.onopen = () => {
         setIsConnected(true)
         setIsConnecting(false)
-        setConnectionAttempts(0)
+        isConnectingRef.current = false
+        connectionAttemptsRef.current = 0
         addMessage("🔗 WebSocket подключен", "connection")
       }
 
@@ -86,53 +177,61 @@ export default function DroneTracker() {
         }
       }
 
-      wsRef.current.onclose = () => {
+      wsRef.current.onclose = (event) => {
         setIsConnected(false)
         setIsConnecting(false)
+        isConnectingRef.current = false
 
         // Только показываем сообщение при первом отключении
-        if (connectionAttempts === 0) {
+        if (connectionAttemptsRef.current === 0) {
           addMessage("🔗 WebSocket отключен", "connection")
         }
 
-        // Ограничиваем количество попыток переподключения
-        if (connectionAttempts < 5) {
-          setConnectionAttempts((prev) => prev + 1)
-          reconnectTimeoutRef.current = setTimeout(connect, 3000)
+        // Автоматическое переподключение только если не было ручного отключения
+        if (!event.wasClean && connectionAttemptsRef.current < 5) {
+          connectionAttemptsRef.current += 1
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connect()
+          }, 3000)
         }
       }
 
       wsRef.current.onerror = (error) => {
         setIsConnecting(false)
+        isConnectingRef.current = false
 
         // Показываем ошибку только при первой попытке
-        if (connectionAttempts === 0) {
+        if (connectionAttemptsRef.current === 0) {
           addMessage("❌ Ошибка WebSocket подключения", "connection")
         }
         console.error("WebSocket error:", error)
       }
     } catch (error) {
       setIsConnecting(false)
-      if (connectionAttempts === 0) {
+      isConnectingRef.current = false
+      if (connectionAttemptsRef.current === 0) {
         addMessage("❌ Не удалось подключиться к WebSocket", "connection")
       }
     }
-  }, [addMessage, connectionAttempts])
+  }, [addMessage])
 
   const disconnect = useCallback(() => {
+    // Очищаем таймер переподключения
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
       reconnectTimeoutRef.current = null
     }
 
+    // Закрываем соединение
     if (wsRef.current) {
-      wsRef.current.close()
+      wsRef.current.close(1000, "Manual disconnect") // Код 1000 = нормальное закрытие
       wsRef.current = null
     }
 
     setIsConnected(false)
     setIsConnecting(false)
-    setConnectionAttempts(0)
+    isConnectingRef.current = false
+    connectionAttemptsRef.current = 0
   }, [])
 
   const createDronePopup = (drone) => {
@@ -156,7 +255,7 @@ export default function DroneTracker() {
           </div>
           <div style="display: flex; justify-content: space-between; font-size: 12px;">
             <span>Скорость:</span>
-            <span>${drone.currentPosition?.speed.toFixed(1)} м/с</span>
+            <span style="color: ${getBatteryColor(drone.battery)};">${drone.currentPosition?.speed.toFixed(1)} м/с</span>
           </div>
           <div style="display: flex; justify-content: space-between; font-size: 12px;">
             <span>Прогресс:</span>
@@ -167,7 +266,6 @@ export default function DroneTracker() {
     `
   }
 
-  // Улучшенная функция плавной анимации
   const smoothMoveMarker = (marker, fromLatLng, toLatLng, duration = 2000) => {
     const droneId = Array.from(droneMarkers.current.entries()).find(([_, m]) => m === marker)?.[0]
 
@@ -177,8 +275,6 @@ export default function DroneTracker() {
 
     const startTime = Date.now()
     const distance = fromLatLng.distanceTo(toLatLng)
-
-    // Адаптивная длительность анимации в зависимости от расстояния
     const adaptiveDuration = Math.min(duration, Math.max(500, distance * 100))
 
     const animate = () => {
@@ -205,11 +301,30 @@ export default function DroneTracker() {
     droneAnimations.current.set(droneId, animationId)
   }
 
+  // Функция для удаления маркера дрона с карты
+  const removeDroneFromMap = useCallback((droneId) => {
+    const map = mapRef.current
+    if (!map) return
+
+    // Удаляем маркер
+    if (droneMarkers.current.has(droneId)) {
+      const marker = droneMarkers.current.get(droneId)
+      map.removeLayer(marker)
+      droneMarkers.current.delete(droneId)
+    }
+
+    // Останавливаем анимацию
+    if (droneAnimations.current.has(droneId)) {
+      cancelAnimationFrame(droneAnimations.current.get(droneId))
+      droneAnimations.current.delete(droneId)
+    }
+  }, [])
+
   // Функция для обновления всех иконок дронов
   const updateAllDroneIcons = useCallback(() => {
     droneMarkers.current.forEach((marker, droneId) => {
       const drone = drones.get(droneId)
-      if (drone) {
+      if (drone && drone.status === "flying") {
         const isSelected = selectedDrone && selectedDrone.drone_id === droneId
         const color = getDroneColor(droneId, isSelected)
         const icon = L.icon({
@@ -219,23 +334,83 @@ export default function DroneTracker() {
           popupAnchor: [0, isSelected ? -16 : -12],
         })
         marker.setIcon(icon)
+      } else {
+        // Удаляем маркер если дрон не летает
+        removeDroneFromMap(droneId)
       }
     })
+  }, [selectedDrone, drones, removeDroneFromMap])
 
-    // Обновляем стили траекторий
-    droneTrails.current.forEach((trail, droneId) => {
-      const isSelected = selectedDrone && selectedDrone.drone_id === droneId
-      const color = getDroneColor(droneId, isSelected)
-      trail.setStyle({
-        color: color,
-        weight: isSelected ? 4 : 2,
-        opacity: isSelected ? 0.9 : 0.6,
+  const showToast = useCallback((message, type = "success") => {
+    setToast({ show: true, message, type })
+  }, [])
+
+  // Функция для вычисления расстояния между двумя точками (формула Haversine)
+  const calculateDistance = useCallback((lat1, lon1, lat2, lon2) => {
+    const R = 6371000 // Радиус Земли в метрах
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLon = ((lon2 - lon1) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c // Расстояние в метрах
+  }, [])
+
+  // Функция для проверки приближения к запретным зонам
+  const checkRestrictedZones = useCallback(
+    (drone) => {
+      if (!drone.currentPosition || dangerZones.length === 0) return
+
+      const dronePos = drone.currentPosition
+      const nowTime = now()
+
+      dangerZones.forEach((zone) => {
+        const distance = calculateDistance(dronePos.latitude, dronePos.longitude, zone.latitude, zone.longtitude)
+
+        // Предупреждение если дрон в пределах радиуса зоны + 50 метров буферной зоны
+        const warningDistance = zone.radius + 50
+
+        if (distance <= warningDistance && distance > zone.radius) {
+          // Проверяем, не показывали ли мы уже предупреждение для этого дрона и зоны
+          const warningKey = `${drone.drone_id}-${zone.restrictedZone_id}`
+          const lastWarning = localStorage.getItem(`warning-${warningKey}`)
+
+          // Показываем предупреждение не чаще чем раз в 30 секунд
+          if (!lastWarning || nowTime - Number.parseInt(lastWarning) > 30000) {
+            showToast(
+              `⚠️ Дрон ${drone.serial_number} приближается к запретной зоне "${zone.zone_name}" (${Math.round(distance)}м)`,
+              "warning",
+            )
+            addMessage(
+              `⚠️ Дрон ${drone.drone_id}: Предупреждение о запретной зоне ${zone.zone_name} (расстояние: ${Math.round(distance)}м)`,
+              "warning",
+            )
+            localStorage.setItem(`warning-${warningKey}`, nowTime.toString())
+          }
+        } else if (distance <= zone.radius) {
+          // Критическое предупреждение - дрон в запретной зоне
+          const criticalKey = `${drone.drone_id}-${zone.restrictedZone_id}-critical`
+          const lastCritical = localStorage.getItem(`critical-${criticalKey}`)
+
+          if (!lastCritical || nowTime - Number.parseInt(lastCritical) > 10000) {
+            showToast(`🚨 КРИТИЧНО! Дрон ${drone.serial_number} в запретной зоне "${zone.zone_name}"!`, "error")
+            addMessage(`🚨 Дрон ${drone.drone_id}: НАРУШЕНИЕ! Вход в запретную зону ${zone.zone_name}`, "warning")
+            localStorage.setItem(`critical-${criticalKey}`, nowTime.toString())
+          }
+        }
       })
-    })
-  }, [selectedDrone, drones])
+    },
+    [dangerZones, calculateDistance, showToast, addMessage],
+  )
 
   function updateDroneOnMap(drone) {
-    if (!drone.currentPosition) return
+    // Показываем только летающие дроны
+    if (!drone.currentPosition || drone.status !== "flying") {
+      // Если дрон не летает, удаляем его с карты
+      removeDroneFromMap(drone.drone_id)
+      return
+    }
 
     const position = [drone.currentPosition.latitude, drone.currentPosition.longitude]
     const isSelected = selectedDrone && selectedDrone.drone_id === drone.drone_id
@@ -271,50 +446,41 @@ export default function DroneTracker() {
       droneMarkers.current.set(drone.drone_id, marker)
     }
 
-    // Обновляем траекторию с улучшенным стилем
-    if (showTrail && drone.positions.length > 1) {
-      const trail = drone.positions.map((pos) => [pos.latitude, pos.longitude])
-
-      if (droneTrails.current.has(drone.drone_id)) {
-        const polyline = droneTrails.current.get(drone.drone_id)
-        polyline.setLatLngs(trail)
-      } else {
-        const polyline = L.polyline(trail, {
-          color: color,
-          weight: isSelected ? 4 : 2,
-          opacity: isSelected ? 0.9 : 0.6,
-          smoothFactor: 2.0,
-          lineCap: "round",
-          lineJoin: "round",
-        }).addTo(map)
-
-        polyline.bindPopup(`
-          <div>
-            <h4 style="color: ${color}; margin: 0 0 8px 0;">📍 Траектория полёта</h4>
-            <p style="margin: 0; font-size: 13px;">Дрон: ${drone.serial_number}</p>
-            <p style="margin: 0; font-size: 13px;">Точек: ${drone.positions.length}</p>
-          </div>
-        `)
-
-        droneTrails.current.set(drone.drone_id, polyline)
-      }
-    }
-  }
-
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type })
+    // Проверяем приближение к запретным зонам
+    checkRestrictedZones(drone)
   }
 
   const handleMessage = useCallback(
     (data) => {
       switch (data.type) {
         case "status_update":
-          addMessage(`📋 Заявка ${data.application_id}: ${data.status} - ${data.message}`, "status-update")
+          const statusMessage = `📋 Заявка ${data.application_id}: ${data.status} - ${data.message}`
+          addMessage(statusMessage, "status-update")
+
+          // Показываем toast для важных статусов
+          if (data.status === "rejected" || data.status === "отклонена") {
+            showToast(`❌ Заявка ${data.application_id} отклонена${data.message ? `: ${data.message}` : ""}`, "error")
+          } else if (data.status === "approved" || data.status === "одобрена") {
+            showToast(`✅ Заявка ${data.application_id} одобрена${data.message ? `: ${data.message}` : ""}`, "success")
+          } else if (data.status === "pending" || data.status === "на рассмотрении") {
+            showToast(
+              `⏳ Заявка ${data.application_id} на рассмотрении${data.message ? `: ${data.message}` : ""}`,
+              "warning",
+            )
+          } else if (data.status === "cancelled" || data.status === "отменена") {
+            showToast(`🚫 Заявка ${data.application_id} отменена${data.message ? `: ${data.message}` : ""}`, "warning")
+          } else {
+            // Для других статусов показываем общее уведомление
+            showToast(
+              `📋 Заявка ${data.application_id}: ${data.status}${data.message ? ` - ${data.message}` : ""}`,
+              "success",
+            )
+          }
           break
 
         case "restricted_zone_warning":
           // Показываем toast уведомление для предупреждений о запретных зонах
-          showToast(`⚠️ Дрон ${data.drone_id} приближается к запретной зоне: ${data.zone_name}`, "error")
+          showToast(`⚠️ Дрон ${data.drone_id} приближается к запретной зоне: ${data.zone_name}`, "warning")
           addMessage(`⚠️ Дрон ${data.drone_id}: Предупреждение о запретной зоне ${data.zone_name}`, "warning")
           break
 
@@ -350,7 +516,6 @@ export default function DroneTracker() {
             })
 
             addMessage(`🚁 Полет начат: Дрон ${data.drone_id} (Заявка ${data.application_id})`, "flight-started")
-
             showToast(`🚁 Полет начат: Дрон ${data.drone_id} (Заявка ${data.application_id})`, "success")
           }
           break
@@ -390,7 +555,7 @@ export default function DroneTracker() {
                 Math.abs(lastPosition.longitude - position.longitude) > 0.00001
 
               if (shouldUpdate) {
-                const newPositions = [...existingDrone.positions, position].slice(-maxTrailPoints)
+                const newPositions = [...existingDrone.positions, position]
 
                 newDrones.set(data.drone_id, {
                   ...existingDrone,
@@ -428,27 +593,130 @@ export default function DroneTracker() {
               return newDrones
             })
 
-            addMessage(`🏁 Полет завершен: Дрон ${data.drone_id} (Заявка ${data.application_id})`, "flight-completed")
+            // Убираем дрон с карты когда полет завершен
+            removeDroneFromMap(data.drone_id)
 
+            // Если завершенный дрон был выбран, сбрасываем выбор
+            setSelectedDrone((prev) => {
+              if (prev && prev.drone_id === data.drone_id) {
+                return null
+              }
+              return prev
+            })
+
+            addMessage(`🏁 Полет завершен: Дрон ${data.drone_id} (Заявка ${data.application_id})`, "flight-completed")
             showToast(`🏁 Полет завершен: Дрон ${data.drone_id} (Заявка ${data.application_id})`, "success")
           }
           break
       }
     },
-    [addMessage, maxTrailPoints],
+    [addMessage, removeDroneFromMap, showToast],
   )
+
+  const fetchDangerZones = async () => {
+    try {
+      const token = localStorage.getItem("token")
+      if (!token) return
+
+      const response = await axios.get("http://localhost:5050/auth/zones", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      setDangerZones(response.data.zones || [])
+    } catch (err) {
+      console.error("Error fetching danger zones:", err)
+      setDangerZones([])
+    }
+  }
+
+  // Добавить функцию для получения погодных данных после функции fetchDangerZones:
+  const fetchWeatherData = async () => {
+    setWeatherLoading(true)
+    try {
+      const API_KEY = "56bca329a171141090d33ab607b33d5f"
+      const lat = center[0]
+      const lon = center[1]
+
+      // Реальный запрос к OpenWeatherMap API
+      const response = await axios.get(
+        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=ru`,
+      )
+
+      const weatherData = response.data
+
+      // Преобразуем данные в нужный формат
+      const formattedWeatherData = {
+        main: {
+          temp: Math.round(weatherData.main.temp),
+          feels_like: Math.round(weatherData.main.feels_like),
+          humidity: weatherData.main.humidity,
+          pressure: weatherData.main.pressure,
+        },
+        wind: {
+          speed: weatherData.wind?.speed || 0,
+          deg: weatherData.wind?.deg || 0,
+        },
+        weather: weatherData.weather,
+        visibility: weatherData.visibility || 10000,
+        name: weatherData.name || "Астана",
+      }
+
+      setWeatherData(formattedWeatherData)
+      addMessage(
+        `🌤️ Погода обновлена: ${formattedWeatherData.main.temp}°C, ${formattedWeatherData.weather[0]?.description}`,
+        "weather",
+      )
+    } catch (error) {
+      console.error("Error fetching weather data:", error)
+      addMessage("❌ Ошибка получения данных о погоде", "connection")
+
+      // В случае ошибки показываем fallback данные
+      const fallbackWeatherData = {
+        main: {
+          temp: -2,
+          feels_like: -5,
+          humidity: 75,
+          pressure: 1013,
+        },
+        wind: {
+          speed: 3.5,
+          deg: 180,
+        },
+        weather: [
+          {
+            main: "Clouds",
+            description: "облачно с прояснениями",
+            icon: "02d",
+          },
+        ],
+        visibility: 9000,
+        name: "Астана",
+      }
+      setWeatherData(fallbackWeatherData)
+    } finally {
+      setWeatherLoading(false)
+    }
+  }
 
   // Обновляем иконки при изменении выбранного дрона
   useEffect(() => {
     updateAllDroneIcons()
   }, [selectedDrone, updateAllDroneIcons])
 
+  // Исправленный useEffect без зависимостей от функций
   useEffect(() => {
+    fetchDangerZones()
+    // Добавить вызов fetchWeatherData в useEffect после fetchDangerZones():
+    fetchWeatherData()
+    // Обновляем погоду каждые 10 минут
+    const weatherInterval = setInterval(fetchWeatherData, 600000)
     connect()
 
     return () => {
       disconnect()
-
+      // Добавить очистку интервала в cleanup функцию useEffect:
+      if (weatherInterval) clearInterval(weatherInterval)
       // Очищаем анимации
       droneAnimations.current.forEach((animationId) => {
         cancelAnimationFrame(animationId)
@@ -457,11 +725,9 @@ export default function DroneTracker() {
 
       // Очищаем маркеры и траектории
       droneMarkers.current.forEach((marker) => mapRef.current?.removeLayer(marker))
-      droneTrails.current.forEach((trail) => mapRef.current?.removeLayer(trail))
       droneMarkers.current.clear()
-      droneTrails.current.clear()
     }
-  }, [connect, disconnect])
+  }, []) // Убрали зависимости!
 
   const clearMessages = () => {
     setMessages([])
@@ -512,11 +778,19 @@ export default function DroneTracker() {
       case "position-update":
         return "text-gray-600"
       case "status-update":
-        return "text-yellow-600"
+        return "text-purple-600"
       case "warning":
         return "text-orange-600"
       case "connection":
         return "text-purple-600"
+      case "weather":
+        return "text-blue-600"
+      case "application-approved":
+        return "text-green-600"
+      case "application-rejected":
+        return "text-red-600"
+      case "application-pending":
+        return "text-yellow-600"
       default:
         return "text-gray-600"
     }
@@ -528,23 +802,35 @@ export default function DroneTracker() {
     useEffect(() => {
       mapRef.current = map
 
-      if (selectedDrone?.currentPosition) {
+      if (selectedDrone?.currentPosition && selectedDrone?.status === "flying") {
         map.flyTo([selectedDrone.currentPosition.latitude, selectedDrone.currentPosition.longitude], 15, {
           duration: 1.5,
         })
       }
 
-      // Обновляем дроны на карте при изменении данных
-      const dronesArray = Array.from(drones.values())
-      dronesArray.forEach((drone) => {
+      // Обновляем только летающие дроны на карте
+      const flyingDrones = Array.from(drones.values()).filter((drone) => drone.status === "flying")
+      flyingDrones.forEach((drone) => {
         updateDroneOnMap(drone)
       })
-    }, [selectedDrone?.currentPosition, map, drones, showTrail])
+
+      // Удаляем с карты дроны, которые больше не летают
+      const allDroneIds = Array.from(drones.keys())
+      const flyingDroneIds = flyingDrones.map((drone) => drone.drone_id)
+
+      allDroneIds.forEach((droneId) => {
+        if (!flyingDroneIds.includes(droneId) && droneMarkers.current.has(droneId)) {
+          removeDroneFromMap(droneId)
+        }
+      })
+    }, [selectedDrone?.currentPosition, map, drones])
 
     return null
   }
 
-  const dronesArray = Array.from(drones.values())
+  // Фильтруем только летающие дроны для отображения
+  const flyingDrones = Array.from(drones.values()).filter((drone) => drone.status === "flying")
+  const allDrones = Array.from(drones.values())
 
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -578,7 +864,7 @@ export default function DroneTracker() {
               ) : (
                 <button
                   onClick={() => {
-                    setConnectionAttempts(0)
+                    connectionAttemptsRef.current = 0
                     connect()
                   }}
                   disabled={isConnecting}
@@ -599,29 +885,18 @@ export default function DroneTracker() {
           {/* Список дронов */}
           <div className="flex-1 overflow-y-auto p-3">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-gray-900">Активные дроны ({dronesArray.length})</h3>
-              <div className="flex items-center space-x-2">
-                <label className="flex items-center space-x-1 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={showTrail}
-                    onChange={(e) => setShowTrail(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span>Траектория</span>
-                </label>
-              </div>
+              <h3 className="text-sm font-medium text-gray-900">Летающие дроны ({flyingDrones.length})</h3>
             </div>
 
-            {dronesArray.length === 0 ? (
+            {flyingDrones.length === 0 ? (
               <div className="text-center py-6">
                 <Plane className="h-6 w-6 text-gray-400 mx-auto" />
-                <p className="mt-2 text-xs text-gray-600">Нет активных дронов</p>
+                <p className="mt-2 text-xs text-gray-600">Нет летающих дронов</p>
                 <p className="text-xs text-gray-500">Ожидание данных от WebSocket...</p>
               </div>
             ) : (
               <div className="space-y-1.5 max-h-80 overflow-y-auto">
-                {dronesArray.map((drone) => {
+                {flyingDrones.map((drone) => {
                   const droneColor = getDroneColor(drone.drone_id, selectedDrone?.drone_id === drone.drone_id)
                   return (
                     <div
@@ -718,7 +993,7 @@ export default function DroneTracker() {
         <div className="flex-1 relative">
           <MapContainer
             center={
-              selectedDrone?.currentPosition
+              selectedDrone?.currentPosition && selectedDrone?.status === "flying"
                 ? [selectedDrone.currentPosition.latitude, selectedDrone.currentPosition.longitude]
                 : center
             }
@@ -731,11 +1006,34 @@ export default function DroneTracker() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
+            {dangerZones.map((zone) => (
+              <Circle
+                key={zone.restrictedZone_id}
+                center={[zone.latitude, zone.longtitude]}
+                radius={zone.radius}
+                pathOptions={{
+                  color: "red",
+                  fillColor: "red",
+                  fillOpacity: 0.2,
+                  weight: 2,
+                }}
+              >
+                <Popup>
+                  <div>
+                    <h4 className="font-medium text-red-600">⚠️ {zone.zone_name}</h4>
+                    <p className="text-sm text-gray-600">Радиус: {zone.radius}м</p>
+                    <p className="text-sm text-gray-600">Высота: {zone.altitude}м</p>
+                    <p className="text-sm text-red-600 font-medium">Полный запрет полётов</p>
+                  </div>
+                </Popup>
+              </Circle>
+            ))}
+
             <MapController />
           </MapContainer>
 
           {/* Информационная панель выбранного дрона */}
-          {selectedDrone && selectedDrone.currentPosition && (
+          {selectedDrone && selectedDrone.currentPosition && selectedDrone.status === "flying" && (
             <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-4 min-w-[300px] border">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-2">
@@ -801,28 +1099,102 @@ export default function DroneTracker() {
               </div>
             </div>
           )}
+          {/* Виджет погоды */}
+          {weatherData && (
+            <div className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-4 min-w-[280px] border">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-2">
+                  <span className="text-2xl">{getWeatherIcon(weatherData.weather[0]?.main)}</span>
+                  <div>
+                    <h4 className="font-medium text-gray-900">{weatherData.name}</h4>
+                    <p className="text-xs text-gray-600">{weatherData.weather[0]?.description}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchWeatherData}
+                  disabled={weatherLoading}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <RefreshCw className={`h-4 w-4 ${weatherLoading ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg">🌡️</span>
+                  <div>
+                    <div className="font-medium">{weatherData.main.temp}°C</div>
+                    <div className="text-xs text-gray-600">Ощущается {weatherData.main.feels_like}°C</div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg">💨</span>
+                  <div>
+                    <div className="font-medium">{weatherData.wind.speed} м/с</div>
+                    <div className="text-xs text-gray-600">{getWindDirection(weatherData.wind.deg)}</div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg">💧</span>
+                  <div>
+                    <div className="font-medium">{weatherData.main.humidity}%</div>
+                    <div className="text-xs text-gray-600">Влажность</div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg">📊</span>
+                  <div>
+                    <div className="font-medium">{weatherData.main.pressure} гПа</div>
+                    <div className="text-xs text-gray-600">Давление</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-600">Видимость:</span>
+                    <span className="text-sm font-medium">{(weatherData.visibility / 1000).toFixed(1)} км</span>
+                  </div>
+                </div>
+
+                <div className="mt-2 p-2 rounded-md bg-gray-50">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-gray-700">Условия для полетов:</span>
+                    <span className={`text-sm font-medium ${getFlightConditions(weatherData).color}`}>
+                      {getFlightConditions(weatherData).text}
+                    </span>
+                  </div>
+                  {getFlightConditions(weatherData).status === "bad" && (
+                    <p className="text-xs text-red-600 mt-1">⚠️ Полеты не рекомендуются</p>
+                  )}
+                  {getFlightConditions(weatherData).status === "caution" && (
+                    <p className="text-xs text-yellow-600 mt-1">⚠️ Соблюдайте осторожность</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Нижняя панель со статистикой */}
       <div className="bg-gray-50 p-4 border-t border-gray-200">
         <div className="flex justify-between items-center">
+          {/* Обновить статистику в нижней панели, добавив информацию о погоде: */}
           <div className="text-sm text-gray-600">
-            Всего дронов: {dronesArray.length} | В полёте: {dronesArray.filter((d) => d.status === "flying").length} |
-            Активных полетов: {dronesArray.filter((d) => d.flightData).length} | Сообщений: {messages.length}
+            Всего дронов: {Array.from(drones.keys()).length} | В полёте: {flyingDrones.length} | Активных полетов:{" "}
+            {flyingDrones.filter((d) => d.flightData).length} | Сообщений: {messages.length}
+            {weatherData && (
+              <span className="ml-4">
+                | Погода: {weatherData.main.temp}°C, ветер {weatherData.wind.speed} м/с
+                <span className={`ml-1 ${getFlightConditions(weatherData).color}`}>
+                  ({getFlightConditions(weatherData).text})
+                </span>
+              </span>
+            )}
           </div>
           <div className="flex items-center space-x-2">
-            <label className="text-xs text-gray-600">
-              Макс. точек траектории:
-              <input
-                type="number"
-                value={maxTrailPoints}
-                onChange={(e) => setMaxTrailPoints(Math.max(10, Math.min(200, Number.parseInt(e.target.value) || 50)))}
-                className="ml-1 w-16 px-1 py-0.5 text-xs border rounded"
-                min="10"
-                max="200"
-              />
-            </label>
             <div
               className={`flex items-center space-x-1 px-2 py-1 rounded text-xs ${
                 isConnected ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"

@@ -29,14 +29,9 @@ const (
 // FlightNotificationServiceClient is the client API for FlightNotificationService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Сервис для коммуникации между Flight Processor и Main Backend
 type FlightNotificationServiceClient interface {
-	// Уведомление об изменении статуса заявки
 	NotifyStatusUpdate(ctx context.Context, in *StatusUpdateRequest, opts ...grpc.CallOption) (*StatusUpdateResponse, error)
-	// Уведомление о начале полета
 	NotifyFlightStarted(ctx context.Context, in *FlightStartedRequest, opts ...grpc.CallOption) (*FlightStartedResponse, error)
-	// Обновление позиции дрона
 	UpdateDronePosition(ctx context.Context, in *DronePositionRequest, opts ...grpc.CallOption) (*DronePositionResponse, error)
 	NotifyFlightCompleted(ctx context.Context, in *FlightCompletedRequest, opts ...grpc.CallOption) (*FlightCompletedResponse, error)
 	NotifyRestrictedZoneProximity(ctx context.Context, in *RestrictedZoneAlertRequest, opts ...grpc.CallOption) (*RestrictedZoneAlertResponse, error)
@@ -103,18 +98,11 @@ func (c *flightNotificationServiceClient) NotifyRestrictedZoneProximity(ctx cont
 // FlightNotificationServiceServer is the server API for FlightNotificationService service.
 // All implementations must embed UnimplementedFlightNotificationServiceServer
 // for forward compatibility.
-//
-// Сервис для коммуникации между Flight Processor и Main Backend
 type FlightNotificationServiceServer interface {
-	// Уведомление об изменении статуса заявки
 	NotifyStatusUpdate(context.Context, *StatusUpdateRequest) (*StatusUpdateResponse, error)
-	// Уведомление о начале полета
 	NotifyFlightStarted(context.Context, *FlightStartedRequest) (*FlightStartedResponse, error)
-	// Обновление позиции дрона
 	UpdateDronePosition(context.Context, *DronePositionRequest) (*DronePositionResponse, error)
-	// Уведомление о завершении полета
 	NotifyFlightCompleted(context.Context, *FlightCompletedRequest) (*FlightCompletedResponse, error)
-	// 🚨 НОВЫЙ МЕТОД: Уведомление о близости к запретной зоне
 	NotifyRestrictedZoneProximity(context.Context, *RestrictedZoneAlertRequest) (*RestrictedZoneAlertResponse, error)
 	mustEmbedUnimplementedFlightNotificationServiceServer()
 }

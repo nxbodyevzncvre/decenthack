@@ -211,9 +211,12 @@ export default function FlightApplications() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button onClick={() => deleteApplication(app.id)} className="text-red-600 hover:text-red-900">
+                        {app.status === "Executing" || app.status === "Processi ng" || app.status === "Completed" || "Rejected" || "Canceled" ? <button onClick={() => deleteApplication(app.id)} className="text-red-600 hover:text-red-900">
                             <Delete />
-                        </button>
+                        </button> : <p className="text-red-900 font-medium">
+                            Запрещено
+                        </p>}
+                        
                       </td>
                     </tr>
                   ))}

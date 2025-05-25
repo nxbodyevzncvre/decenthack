@@ -240,7 +240,7 @@ export default function AddDangerZone() {
                 />
                 <Circle
                         key={"baza"}
-                        center={[51.11990, 71.48048]}
+                        center={[51.15545, 71.41216]}
                         radius={200}
                         pathOptions={{
                           color: "black",

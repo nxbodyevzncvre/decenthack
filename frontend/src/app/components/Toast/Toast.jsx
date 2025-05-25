@@ -1,62 +1,66 @@
-"use client";
+"use client"
 
-import { useEffect } from "react";
-import { CheckCircle, X, AlertCircle } from "lucide-react";
 
-export default function Toast({ message, type, show, onClose }) {
+import { useState, useEffect } from "react"
+
+
+const Toast = ({ message, type, show, onClose }) => {
+  const [isVisible, setIsVisible] = useState(show)
+
   useEffect(() => {
-    if (show) {
+    setIsVisible(show)
+  }, [show])
+
+  useEffect(() => {
+    if (isVisible) {
+      // Увеличиваем время показа для error и warning сообщений
+      const duration = type === "error" || type === "warning" ? 8000 : 5000
       const timer = setTimeout(() => {
-        onClose();
-      }, 5000);
-
-      return () => clearTimeout(timer);
+        setIsVisible(false)
+        onClose()
+      }, duration)
+      return () => clearTimeout(timer)
     }
-  }, [show, onClose]);
+  }, [isVisible, onClose, type])
 
-  if (!show) return null;
+  if (!isVisible) {
+    return null
+  }
+
+  let backgroundColor = "bg-green-100"
+  let textColor = "text-green-700"
+  let borderColor = "border-green-200"
+  let icon = "✅"
+
+  if (type === "error") {
+    backgroundColor = "bg-red-100"
+    textColor = "text-red-700"
+    borderColor = "border-red-200"
+    icon = "❌"
+  } else if (type === "warning") {
+    backgroundColor = "bg-orange-100"
+    textColor = "text-orange-700"
+    borderColor = "border-orange-200"
+    icon = "⚠️"
+  }
 
   return (
-    <div className="fixed top-4 right-4 z-50 animate-slide-in">
-      <div
-        className={`flex items-center p-4 rounded-lg shadow-lg ${
-          type === "success"
-            ? "bg-green-50 border-l-4 border-green-500"
-            : "bg-red-50 border-l-4 border-red-500"
-        }`}
-      >
-        <div className="flex-shrink-0">
-          {type === "success" ? (
-            <CheckCircle className="h-5 w-5 text-green-500" />
-          ) : (
-            <AlertCircle className="h-5 w-5 text-red-500" />
-          )}
+    <div
+      className={`fixed bottom-4 right-4 z-50 ${backgroundColor} ${textColor} border ${borderColor} rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-right duration-300`}
+    >
+      <div className="flex items-start space-x-3">
+        <div className="flex-shrink-0 text-lg">{icon}</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium leading-relaxed break-words">{message}</div>
         </div>
-        <div className="ml-3">
-          <p
-            className={`text-sm font-medium ${
-              type === "success" ? "text-green-800" : "text-red-800"
-            }`}
-          >
-            {message}
-          </p>
-        </div>
-        <div className="ml-auto pl-3">
-          <div className="-mx-1.5 -my-1.5">
-            <button
-              onClick={onClose}
-              className={`inline-flex rounded-md p-1.5 ${
-                type === "success"
-                  ? "text-green-500 hover:bg-green-100"
-                  : "text-red-500 hover:bg-red-100"
-              }`}
-            >
-              <span className="sr-only">Закрыть</span>
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <button onClick={onClose} className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>
-  );
+  )
 }
+
+export default Toast

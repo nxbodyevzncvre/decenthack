@@ -28,7 +28,7 @@ func main() {
 	go wsHub.Run()
 
 	go func() {
-		log.Println("🚀 Starting gRPC server on port 1234...")
+		log.Println("Starting gRPC server on port 1234...")
 		if err := server.StartGRPCServer(wsHub, "1234"); err != nil {
 			log.Fatalf("Failed to start gRPC server: %v", err)
 		}

@@ -22,7 +22,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Запрос на обновление статуса
 type StatusUpdateRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	ApplicationId   int32                  `protobuf:"varint,1,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
@@ -151,7 +150,6 @@ func (x *StatusUpdateResponse) GetErrorMessage() string {
 	return ""
 }
 
-// Запрос о начале полета
 type FlightStartedRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ApplicationId    int32                  `protobuf:"varint,1,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
@@ -296,7 +294,6 @@ func (x *FlightStartedResponse) GetErrorMessage() string {
 	return ""
 }
 
-// Запрос на обновление позиции
 type DronePositionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ApplicationId int32                  `protobuf:"varint,1,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
@@ -457,7 +454,6 @@ func (x *DronePositionResponse) GetErrorMessage() string {
 	return ""
 }
 
-// Запрос о завершении полета
 type FlightCompletedRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ApplicationId    int32                  `protobuf:"varint,1,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
@@ -586,7 +582,6 @@ func (x *FlightCompletedResponse) GetErrorMessage() string {
 	return ""
 }
 
-// 🚨 НОВЫЕ СООБЩЕНИЯ: Уведомления о запретных зонах
 type RestrictedZoneAlertRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ApplicationId int32                  `protobuf:"varint,1,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
@@ -755,7 +750,6 @@ func (x *RestrictedZoneAlertResponse) GetErrorMessage() string {
 	return ""
 }
 
-// Вспомогательные сообщения
 type RoutePoint struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`

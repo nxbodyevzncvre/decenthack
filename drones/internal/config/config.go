@@ -23,8 +23,8 @@ func Load() *Config {
 	processingDelay, _ := strconv.Atoi(getEnv("PROCESSING_DELAY_SECONDS", "10"))
 	flightSpeedMS, _ := strconv.ParseFloat(getEnv("FLIGHT_SPEED_MS", "15.0"), 64)
 
-	baseLat, _ := strconv.ParseFloat(getEnv("BASE_LATITUDE", "51.11990"), 64)
-	baseLon, _ := strconv.ParseFloat(getEnv("BASE_LONGITUDE", "71.48048"), 64)
+	baseLat, _ := strconv.ParseFloat(getEnv("BASE_LATITUDE", "51.15545"), 64)
+	baseLon, _ := strconv.ParseFloat(getEnv("BASE_LONGITUDE", "71.41216"), 64)
 	baseAlt, _ := strconv.ParseFloat(getEnv("BASE_ALTITUDE", "0.0"), 64)
 
 	defaultDatabaseURL := "root:root@tcp(localhost:3306)/mydb"

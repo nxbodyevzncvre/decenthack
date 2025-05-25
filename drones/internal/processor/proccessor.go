@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math"
 	"sync"
@@ -23,6 +24,9 @@ type FlightProcessor struct {
 	cancel          context.CancelFunc
 	restrictedZones []structures.RestrictedZone
 	zonesLastUpdate time.Time
+	zonesMutex      sync.RWMutex
+	sentAlerts      map[string]bool
+	alertsMutex     sync.RWMutex
 }
 
 func New(repo *repository.Repository, grpcClient *grpc.NotificationClient, cfg *config.Config) *FlightProcessor {
@@ -35,47 +39,69 @@ func New(repo *repository.Repository, grpcClient *grpc.NotificationClient, cfg *
 		activeFlights: make(map[int]*structures.ActiveFlight),
 		ctx:           ctx,
 		cancel:        cancel,
+		sentAlerts:    make(map[string]bool),
 	}
 }
 
 func (fp *FlightProcessor) Start() {
-	log.Println("🚀 Starting flight processor...")
+	log.Println("Starting flight processor...")
 
-	// Загружаем запретные зоны при старте
 	fp.loadRestrictedZones()
 
-	// Запускаем обработку новых заявок
 	go fp.processNewApplications()
-
-	// Запускаем симуляцию полетов
 	go fp.simulateFlights()
+	go fp.periodicZoneUpdate()
 }
 
 func (fp *FlightProcessor) Stop() {
+	log.Println("Stopping flight processor...")
 	fp.cancel()
+
+	fp.mutex.Lock()
+	for _, flight := range fp.activeFlights {
+		fp.forceCompleteFlight(flight, "system_shutdown")
+	}
+	fp.mutex.Unlock()
 }
 
-// Загружаем запретные зоны в кэш
+func (fp *FlightProcessor) periodicZoneUpdate() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-fp.ctx.Done():
+			return
+		case <-ticker.C:
+			fp.loadRestrictedZones()
+		}
+	}
+}
+
 func (fp *FlightProcessor) loadRestrictedZones() {
 	zones, err := fp.repo.GetRestrictedZones()
 	if err != nil {
-		log.Printf("❌ Error loading restricted zones: %v", err)
+		log.Printf("Error loading restricted zones: %v", err)
 		return
 	}
 
+	fp.zonesMutex.Lock()
 	fp.restrictedZones = zones
 	fp.zonesLastUpdate = time.Now()
-	log.Printf("🚫 Loaded %d restricted zones into cache", len(zones))
+	fp.zonesMutex.Unlock()
+
+	log.Printf("Loaded %d restricted zones into cache", len(zones))
 }
 
-// Обновляем кэш запретных зон каждые 5 минут
-func (fp *FlightProcessor) updateRestrictedZonesCache() {
-	if time.Since(fp.zonesLastUpdate) > 5*time.Minute {
-		fp.loadRestrictedZones()
-	}
+func (fp *FlightProcessor) getRestrictedZones() []structures.RestrictedZone {
+	fp.zonesMutex.RLock()
+	defer fp.zonesMutex.RUnlock()
+
+	zones := make([]structures.RestrictedZone, len(fp.restrictedZones))
+	copy(zones, fp.restrictedZones)
+	return zones
 }
 
-// Обработка новых заявок
 func (fp *FlightProcessor) processNewApplications() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -93,157 +119,250 @@ func (fp *FlightProcessor) processNewApplications() {
 func (fp *FlightProcessor) checkPendingApplications() {
 	applications, err := fp.repo.GetPendingApplications()
 	if err != nil {
-		log.Printf("❌ Error getting pending applications: %v", err)
+		log.Printf("Error getting pending applications: %v", err)
 		return
 	}
 
-	log.Printf("📋 Found %d pending applications", len(applications))
+	if len(applications) > 0 {
+		log.Printf("Found %d pending applications", len(applications))
+	}
 
 	for _, app := range applications {
-		go fp.processApplication(app)
+		select {
+		case <-fp.ctx.Done():
+			return
+		default:
+			go fp.processApplication(app)
+		}
 	}
 }
 
 func (fp *FlightProcessor) processApplication(app structures.Application) {
-	log.Printf("🔄 Processing application %d", app.Id)
+	log.Printf("Processing application %d", app.Id)
 
-	// Обновляем статус на "processing"
+	select {
+	case <-fp.ctx.Done():
+		return
+	default:
+	}
+
 	err := fp.repo.UpdateApplicationStatus(app.Id, structures.StatusProcessing, "")
 	if err != nil {
-		log.Printf("❌ Error updating application status: %v", err)
+		log.Printf("Error updating application status: %v", err)
 		return
 	}
 
-	// Отправляем уведомление
-	fp.grpcClient.NotifyStatusUpdate(context.Background(), app.Id, structures.StatusProcessing, "Application is being processed", "")
+	ctx, cancel := context.WithTimeout(fp.ctx, 15*time.Second)
+	defer cancel()
 
-	// Имитируем время обработки
-	log.Printf("⏳ Processing application %d for %v", app.Id, fp.config.ProcessingDelay)
-	time.Sleep(fp.config.ProcessingDelay)
+	log.Printf("Sending PROCESSING status notification for application %d", app.Id)
+	fp.notifyStatusUpdate(ctx, app.Id, structures.StatusProcessing, "Application is being processed and validated", "")
 
-	// Проверяем маршрут и запретные зоны
+	select {
+	case <-fp.ctx.Done():
+		return
+	case <-time.After(fp.config.ProcessingDelay):
+	}
+
 	approved, reason := fp.validateFlight(app)
 
 	if approved {
-		log.Printf("✅ Application %d APPROVED", app.Id)
-		// Одобряем заявку
+		log.Printf("Application %d APPROVED", app.Id)
 		err = fp.repo.UpdateApplicationStatus(app.Id, structures.StatusApproved, "")
 		if err != nil {
-			log.Printf("❌ Error approving application: %v", err)
+			log.Printf("Error approving application: %v", err)
+			log.Printf("Sending REJECTED status notification for application %d due to DB error", app.Id)
+			fp.notifyStatusUpdate(ctx, app.Id, structures.StatusRejected, "Internal error occurred during approval", "Database update failed")
 			return
 		}
 
-		fp.grpcClient.NotifyStatusUpdate(context.Background(), app.Id, structures.StatusApproved, "Application approved, starting flight", "")
-
-		// Запускаем полет
+		log.Printf("Sending APPROVED status notification for application %d", app.Id)
+		fp.notifyStatusUpdate(ctx, app.Id, structures.StatusApproved, "Application approved successfully. Flight will start shortly.", "")
 		fp.startFlight(app)
 	} else {
-		log.Printf("❌ Application %d REJECTED: %s", app.Id, reason)
-		// Отклоняем заявку
+		log.Printf("Application %d REJECTED: %s", app.Id, reason)
 		err = fp.repo.UpdateApplicationStatus(app.Id, structures.StatusRejected, reason)
 		if err != nil {
-			log.Printf("❌ Error rejecting application: %v", err)
-			return
+			log.Printf("Error rejecting application: %v", err)
 		}
 
-		fp.grpcClient.NotifyStatusUpdate(context.Background(), app.Id, structures.StatusRejected, "Application rejected", reason)
+		log.Printf("Sending REJECTED status notification for application %d with reason: %s", app.Id, reason)
+		fp.notifyStatusUpdate(ctx, app.Id, structures.StatusRejected, "Application rejected after validation", reason)
+	}
+}
+
+func (fp *FlightProcessor) notifyStatusUpdate(ctx context.Context, applicationId int, status structures.Status, message, rejectionReason string) {
+	log.Printf("Attempting to send gRPC notification: app_id=%d, status=%s, message=%s, reason=%s",
+		applicationId, status, message, rejectionReason)
+
+	err := fp.grpcClient.NotifyStatusUpdate(ctx, applicationId, status, message, rejectionReason)
+	if err != nil {
+		log.Printf("FAILED to send status update notification for application %d: %v", applicationId, err)
+	} else {
+		log.Printf("SUCCESS: Status update notification sent for application %d", applicationId)
 	}
 }
 
 func (fp *FlightProcessor) validateFlight(app structures.Application) (bool, string) {
-	log.Printf("🔍 Validating flight for application %d", app.Id)
+	log.Printf("Validating flight for application %d", app.Id)
 
-	// Получаем точку назначения из маршрута
 	destinationPoints, err := fp.repo.GetRouteByApplicationId(app.Id)
 	if err != nil {
-		log.Printf("❌ Error loading destination for app %d: %v", app.Id, err)
-		return false, "Error loading destination"
+		log.Printf("Error loading destination for app %d: %v", app.Id, err)
+		return false, "Unable to load flight route from database"
 	}
 
-	log.Printf("📍 Found %d destination points for application %d", len(destinationPoints), app.Id)
+	log.Printf("Found %d destination points for application %d", len(destinationPoints), app.Id)
 
 	if len(destinationPoints) == 0 {
-		log.Printf("❌ No destination point found for application %d", app.Id)
-		return false, "No destination point specified"
+		log.Printf("No destination point found for application %d", app.Id)
+		return false, "No destination point specified in the flight plan"
 	}
 
-	// Берем первую точку как пункт назначения
 	destination := destinationPoints[0]
-	log.Printf("🎯 Destination: lat=%.6f, lon=%.6f, alt=%.2f",
+	log.Printf("Destination: lat=%.6f, lon=%.6f, alt=%.2f",
 		destination.Latitude, destination.Longitude, destination.Altitude)
 
-	// Создаем полный маршрут: база -> назначение
+	if destination.Altitude < 0 || destination.Altitude > 500 {
+		return false, fmt.Sprintf("Invalid altitude: %.1f meters. Allowed range: 0-500 meters", destination.Altitude)
+	}
+
 	fullRoute := fp.createFullRoute(destination)
-	log.Printf("🛣️ Created full route with %d points", len(fullRoute))
-	for i, point := range fullRoute {
-		log.Printf("   Point %d: lat=%.6f, lon=%.6f, alt=%.2f",
-			i, point.Latitude, point.Longitude, point.Altitude)
-	}
+	log.Printf("Created full route with %d points", len(fullRoute))
 
-	// Обновляем кэш запретных зон
-	fp.updateRestrictedZonesCache()
+	restrictedZones := fp.getRestrictedZones()
+	log.Printf("Found %d restricted zones", len(restrictedZones))
 
-	log.Printf("🚫 Found %d restricted zones", len(fp.restrictedZones))
-	for _, zone := range fp.restrictedZones {
-		log.Printf("   Zone '%s': lat=%.6f, lon=%.6f, radius=%d m",
+	return fp.checkRouteAgainstZones(fullRoute, restrictedZones)
+}
+
+func (fp *FlightProcessor) checkRouteAgainstZones(route []structures.RoutePoint, zones []structures.RestrictedZone) (bool, string) {
+	for _, zone := range zones {
+		log.Printf("Checking zone '%s': lat=%.6f, lon=%.6f, radius=%d m",
 			zone.Name, zone.Latitude, zone.Longtitude, zone.Radius)
-	}
 
-	// Проверяем пересечение с запретными зонами
-	for i, point := range fullRoute {
-		for _, zone := range fp.restrictedZones {
+		for i, point := range route {
 			distance := fp.calculateDistanceMeters(point.Latitude, point.Longitude, zone.Latitude, zone.Longtitude)
-			log.Printf("🔍 Point %d to zone '%s': distance=%.1f m, zone radius=%d m",
-				i, zone.Name, distance, zone.Radius)
+
+			log.Printf("Point %d (lat=%.6f, lon=%.6f) to zone '%s': distance=%.1f m, zone_radius=%d m",
+				i, point.Latitude, point.Longitude, zone.Name, distance, zone.Radius)
 
 			if distance <= float64(zone.Radius) {
-				log.Printf("❌ COLLISION! Point %d intersects with zone '%s' (distance: %.1f m <= radius: %d m)",
+				log.Printf("COLLISION! Point %d inside zone '%s' (distance: %.1f m <= radius: %d m)",
 					i, zone.Name, distance, zone.Radius)
-				return false, "Route intersects with restricted zone: " + zone.Name
+				return false, fmt.Sprintf("Flight route passes through restricted zone '%s'. Minimum distance required: %d meters", zone.Name, zone.Radius)
 			}
+		}
+
+		if fp.checkLineIntersection(route, zone) {
+			log.Printf("COLLISION! Route path intersects with zone '%s'", zone.Name)
+			return false, fmt.Sprintf("Flight path intersects with restricted zone '%s'", zone.Name)
 		}
 	}
 
-	log.Printf("✅ No restricted zone collisions found")
-	log.Printf("✅ All validations passed for application %d", app.Id)
+	log.Printf("Basic route validation passed - no direct intersections with restricted zones")
 	return true, ""
 }
 
-// Создаем полный маршрут от базы до пункта назначения
+func (fp *FlightProcessor) checkLineIntersection(route []structures.RoutePoint, zone structures.RestrictedZone) bool {
+	if len(route) < 2 {
+		return false
+	}
+
+	zoneRadius := float64(zone.Radius)
+
+	for i := 1; i < len(route); i++ {
+		start := route[i-1]
+		end := route[i]
+
+		minDistance := fp.distanceFromPointToLineSegment(
+			zone.Latitude, zone.Longtitude,
+			start.Latitude, start.Longitude,
+			end.Latitude, end.Longitude,
+		)
+
+		log.Printf("Segment %d-%d minimum distance to zone '%s': %.1f m (zone_radius: %.1f m)",
+			i-1, i, zone.Name, minDistance, zoneRadius)
+
+		if minDistance <= zoneRadius {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (fp *FlightProcessor) distanceFromPointToLineSegment(px, py, x1, y1, x2, y2 float64) float64 {
+	A := px - x1
+	B := py - y1
+	C := x2 - x1
+	D := y2 - y1
+
+	dot := A*C + B*D
+	lenSq := C*C + D*D
+
+	if lenSq == 0 {
+		return fp.calculateDistanceMeters(px, py, x1, y1)
+	}
+
+	param := dot / lenSq
+
+	var xx, yy float64
+	if param < 0 {
+		xx, yy = x1, y1
+	} else if param > 1 {
+		xx, yy = x2, y2
+	} else {
+		xx = x1 + param*C
+		yy = y1 + param*D
+	}
+
+	return fp.calculateDistanceMeters(px, py, xx, yy)
+}
+
 func (fp *FlightProcessor) createFullRoute(destination structures.RoutePoint) []structures.RoutePoint {
-	// Координаты базы дронов (можете изменить на свои)
 	baseLocation := structures.RoutePoint{
-		Id:            0,        // Виртуальная точка
-		Latitude:      51.11990, // Ваша база
-		Longitude:     71.48048,
-		Altitude:      0.0, // Высота взлета в метрах
+		Id:            0,
+		Latitude:      51.15545,
+		Longitude:     71.41216,
+		Altitude:      0.0,
 		PointOrder:    0,
 		ApplicationId: destination.ApplicationId,
 	}
 
-	// Обновляем порядок точек
 	destination.PointOrder = 1
 
 	return []structures.RoutePoint{baseLocation, destination}
 }
 
 func (fp *FlightProcessor) startFlight(app structures.Application) {
-	// Получаем точку назначения
+	select {
+	case <-fp.ctx.Done():
+		return
+	default:
+	}
+
 	destinationPoints, err := fp.repo.GetRouteByApplicationId(app.Id)
 	if err != nil {
-		log.Printf("❌ Error loading destination for flight %d: %v", app.Id, err)
+		log.Printf("Error loading destination for flight %d: %v", app.Id, err)
+		ctx, cancel := context.WithTimeout(fp.ctx, 10*time.Second)
+		defer cancel()
+		log.Printf("Sending CANCELLED status notification for application %d due to route loading error", app.Id)
+		fp.notifyStatusUpdate(ctx, app.Id, structures.StatusCancelled, "Failed to start flight", "Unable to load flight route")
 		return
 	}
 
 	if len(destinationPoints) == 0 {
-		log.Printf("❌ No destination found for application %d", app.Id)
+		log.Printf("No destination found for application %d", app.Id)
+		ctx, cancel := context.WithTimeout(fp.ctx, 10*time.Second)
+		defer cancel()
+		log.Printf("Sending CANCELLED status notification for application %d due to no destination", app.Id)
+		fp.notifyStatusUpdate(ctx, app.Id, structures.StatusCancelled, "Failed to start flight", "No destination found")
 		return
 	}
 
-	// Создаем полный маршрут
 	fullRoute := fp.createFullRoute(destinationPoints[0])
 
-	// Создаем активный полет
 	flight := &structures.ActiveFlight{
 		ApplicationId:   app.Id,
 		DroneId:         app.Drone_id,
@@ -255,42 +374,126 @@ func (fp *FlightProcessor) startFlight(app structures.Application) {
 		CurrentPosition: structures.DronePosition{
 			ApplicationId: app.Id,
 			DroneId:       app.Drone_id,
-			Latitude:      fullRoute[0].Latitude, // Начинаем с базы
+			Latitude:      fullRoute[0].Latitude,
 			Longitude:     fullRoute[0].Longitude,
 			Altitude:      fullRoute[0].Altitude,
 			Timestamp:     time.Now(),
-			RouteProgress: 0.0, // 🔧 ВАЖНО: Начинаем с 0%
+			RouteProgress: 0.0,
 		},
 	}
 
-	// 🔧 ИСПРАВЛЕННЫЙ расчет времени полета
 	totalDistance := fp.calculateRouteDistanceMeters(fullRoute)
-
-	// Время = расстояние (м) / скорость (м/с) = секунды
 	flightTimeSeconds := totalDistance / fp.config.FlightSpeedMS
 	flightDuration := time.Duration(flightTimeSeconds) * time.Second
-
 	flight.EstimatedEndTime = flight.StartTime.Add(flightDuration)
 
 	fp.mutex.Lock()
 	fp.activeFlights[app.Id] = flight
 	fp.mutex.Unlock()
 
-	// Обновляем статус в БД
+	fp.clearAlertsForFlight(app.Id)
+
 	err = fp.repo.UpdateApplicationStatus(app.Id, structures.StatusExecuting, "")
 	if err != nil {
-		log.Printf("❌ Error updating application status to executing: %v", err)
+		log.Printf("Error updating application status to executing: %v", err)
 	}
 
-	fp.grpcClient.NotifyFlightStarted(context.Background(), flight)
+	ctx, cancel := context.WithTimeout(fp.ctx, 15*time.Second)
+	defer cancel()
 
-	log.Printf("🚁 Started flight for application %d", app.Id)
-	log.Printf("   📏 Distance: %.1f m (%.2f km)", totalDistance, totalDistance/1000)
-	log.Printf("   🏃 Speed: %.1f m/s (%.1f km/h)", fp.config.FlightSpeedMS, fp.config.FlightSpeedMS*3.6)
-	log.Printf("   ⏱️ Duration: %v", flightDuration)
+	log.Printf("Sending EXECUTING status notification for application %d", app.Id)
+	fp.notifyStatusUpdate(ctx, app.Id, structures.StatusExecuting, fmt.Sprintf("Flight started successfully. Estimated duration: %v", flightDuration), "")
+
+	log.Printf("Sending flight started notification for application %d", app.Id)
+	err = fp.grpcClient.NotifyFlightStarted(ctx, flight)
+	if err != nil {
+		log.Printf("FAILED to send flight started notification: %v", err)
+	} else {
+		log.Printf("SUCCESS: Flight started notification sent for application %d", app.Id)
+	}
+
+	log.Printf("Started flight for application %d", app.Id)
+	log.Printf("   Distance: %.1f m (%.2f km)", totalDistance, totalDistance/1000)
+	log.Printf("   Speed: %.1f m/s (%.1f km/h)", fp.config.FlightSpeedMS, fp.config.FlightSpeedMS*3.6)
+	log.Printf("   Duration: %v", flightDuration)
 }
 
-// Остальные методы остаются без изменений...
+func (fp *FlightProcessor) forceCompleteFlight(flight *structures.ActiveFlight, reason string) {
+	log.Printf("Force completing flight %d, reason: %s", flight.ApplicationId, reason)
+
+	var status structures.Status
+	var message string
+
+	switch reason {
+	case "system_shutdown":
+		status = structures.StatusCancelled
+		message = "Flight cancelled due to system shutdown"
+	case "restricted_zone":
+		status = structures.StatusCancelled
+		message = "Flight cancelled due to restricted zone proximity"
+	default:
+		status = structures.StatusCompleted
+		message = "Flight completed successfully"
+	}
+
+	err := fp.repo.UpdateApplicationStatus(flight.ApplicationId, status, reason)
+	if err != nil {
+		log.Printf("Error updating application status: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	log.Printf("Sending %s status notification for application %d", status, flight.ApplicationId)
+	fp.notifyStatusUpdate(ctx, flight.ApplicationId, status, message, reason)
+
+	log.Printf("Sending flight completed notification for application %d", flight.ApplicationId)
+	err = fp.grpcClient.NotifyFlightCompleted(ctx, flight, reason)
+	if err != nil {
+		log.Printf("FAILED to send flight completed notification: %v", err)
+	} else {
+		log.Printf("SUCCESS: Flight completed notification sent for application %d", flight.ApplicationId)
+	}
+}
+
+func (fp *FlightProcessor) stopFlightAndRemoveApplication(flight *structures.ActiveFlight, zone structures.RestrictedZone, distanceToBorder float64) {
+	log.Printf("STOPPING FLIGHT %d due to proximity to restricted zone '%s' (%.1f m to border)",
+		flight.ApplicationId, zone.Name, distanceToBorder)
+
+	reason := fmt.Sprintf("Flight automatically stopped: drone approached within %.1f meters of restricted zone '%s'", distanceToBorder, zone.Name)
+
+	err := fp.repo.UpdateApplicationStatus(flight.ApplicationId, structures.StatusCancelled, reason)
+	if err != nil {
+		log.Printf("Error updating application status to cancelled: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(fp.ctx, 15*time.Second)
+	defer cancel()
+
+	log.Printf("Sending CANCELLED status notification for application %d due to restricted zone", flight.ApplicationId)
+	fp.notifyStatusUpdate(ctx, flight.ApplicationId, structures.StatusCancelled, "Flight stopped for safety reasons", reason)
+
+	log.Printf("Sending restricted zone proximity alert for application %d", flight.ApplicationId)
+	err = fp.grpcClient.NotifyRestrictedZoneProximity(ctx, flight.ApplicationId, flight.DroneId, zone, "DANGER", distanceToBorder, flight.CurrentPosition)
+	if err != nil {
+		log.Printf("FAILED to send restricted zone alert: %v", err)
+	} else {
+		log.Printf("SUCCESS: Restricted zone alert sent for application %d", flight.ApplicationId)
+	}
+
+	fp.mutex.Lock()
+	delete(fp.activeFlights, flight.ApplicationId)
+	fp.mutex.Unlock()
+
+	log.Printf("Sending flight completed notification for application %d", flight.ApplicationId)
+	err = fp.grpcClient.NotifyFlightCompleted(ctx, flight, "restricted_zone")
+	if err != nil {
+		log.Printf("FAILED to send flight completed notification: %v", err)
+	} else {
+		log.Printf("SUCCESS: Flight completed notification sent for application %d", flight.ApplicationId)
+	}
+}
+
 func (fp *FlightProcessor) simulateFlights() {
 	ticker := time.NewTicker(fp.config.PositionUpdateInterval)
 	defer ticker.Stop()
@@ -314,7 +517,12 @@ func (fp *FlightProcessor) updateFlightPositions() {
 	fp.mutex.RUnlock()
 
 	for _, flight := range flights {
-		fp.updateSingleFlight(flight)
+		select {
+		case <-fp.ctx.Done():
+			return
+		default:
+			fp.updateSingleFlight(flight)
+		}
 	}
 }
 
@@ -326,17 +534,15 @@ func (fp *FlightProcessor) updateSingleFlight(flight *structures.ActiveFlight) {
 
 	currentWaypoint := flight.Route[flight.CurrentWaypoint]
 
-	// Рассчитываем новую позицию
 	newPosition := fp.calculateNewPosition(flight.CurrentPosition, currentWaypoint)
 
-	// Проверяем, достигли ли мы текущей точки маршрута (в метрах)
 	distance := fp.calculateDistanceMeters(
 		newPosition.Latitude, newPosition.Longitude,
 		currentWaypoint.Latitude, currentWaypoint.Longitude,
 	)
 
-	if distance < 10.0 { // 10 метров точность
-		log.Printf("🎯 Drone %d reached waypoint %d", flight.DroneId, flight.CurrentWaypoint)
+	if distance < 10.0 {
+		log.Printf("Drone %d reached waypoint %d", flight.DroneId, flight.CurrentWaypoint)
 		flight.CurrentWaypoint++
 		if flight.CurrentWaypoint >= len(flight.Route) {
 			fp.completeFlight(flight)
@@ -344,94 +550,104 @@ func (fp *FlightProcessor) updateSingleFlight(flight *structures.ActiveFlight) {
 		}
 	}
 
-	// Обновляем позицию
 	flight.CurrentPosition = newPosition
-
-	// 🔧 ИСПРАВЛЕННЫЙ расчет прогресса маршрута
 	flight.CurrentPosition.RouteProgress = fp.calculateRouteProgress(flight)
 
-	// 🚨 НОВОЕ: Проверяем близость к запретным зонам
-	fp.checkRestrictedZoneProximity(flight)
-
-	// Сохраняем в БД
-	err := fp.repo.SaveDronePosition(flight.CurrentPosition)
-	if err != nil {
-		log.Printf("❌ Error saving drone position: %v", err)
+	if fp.checkRestrictedZoneProximity(flight) {
+		return
 	}
 
-	// Отправляем обновление позиции
-	fp.grpcClient.UpdateDronePosition(context.Background(), flight.CurrentPosition)
+	err := fp.repo.SaveDronePosition(flight.CurrentPosition)
+	if err != nil {
+		log.Printf("Error saving drone position: %v", err)
+	}
 
-	// Логируем каждые 2 секунды для отладки
+	ctx, cancel := context.WithTimeout(fp.ctx, 5*time.Second)
+	defer cancel()
+	err = fp.grpcClient.UpdateDronePosition(ctx, flight.CurrentPosition)
+	if err != nil {
+		log.Printf("Failed to send position update: %v", err)
+	}
+
 	if time.Now().Unix()%2 == 0 {
-		log.Printf("📍 Drone %d: lat=%.6f, lon=%.6f, progress=%.1f%%, waypoint=%d/%d, distance_to_target=%.1fm",
+		log.Printf("Drone %d: lat=%.6f, lon=%.6f, progress=%.1f%%, waypoint=%d/%d, distance_to_target=%.1fm",
 			flight.DroneId, flight.CurrentPosition.Latitude, flight.CurrentPosition.Longitude,
 			flight.CurrentPosition.RouteProgress, flight.CurrentWaypoint, len(flight.Route)-1, distance)
 	}
 }
 
-// 🚨 НОВАЯ ФУНКЦИЯ: Проверка близости к запретным зонам
-func (fp *FlightProcessor) checkRestrictedZoneProximity(flight *structures.ActiveFlight) {
-	const WARNING_DISTANCE = 100.0 // Предупреждение за 100 метров
-	const DANGER_DISTANCE = 50.0   // Опасность за 50 метров
+func (fp *FlightProcessor) checkRestrictedZoneProximity(flight *structures.ActiveFlight) bool {
+	const STOP_DISTANCE = 100.0
 
-	for _, zone := range fp.restrictedZones {
-		distance := fp.calculateDistanceMeters(
+	restrictedZones := fp.getRestrictedZones()
+
+	for _, zone := range restrictedZones {
+		distanceToCenter := fp.calculateDistanceMeters(
 			flight.CurrentPosition.Latitude,
 			flight.CurrentPosition.Longitude,
 			zone.Latitude,
 			zone.Longtitude,
 		)
 
-		// Проверяем различные уровни близости
-		if distance <= DANGER_DISTANCE {
-			// КРИТИЧЕСКАЯ БЛИЗОСТЬ - красная зона
-			fp.sendRestrictedZoneAlert(flight, zone, "DANGER", distance)
-			log.Printf("🚨 DANGER! Drone %d is %.1fm from restricted zone '%s'",
-				flight.DroneId, distance, zone.Name)
-		} else if distance <= WARNING_DISTANCE {
-			// ПРЕДУПРЕЖДЕНИЕ - желтая зона
-			fp.sendRestrictedZoneAlert(flight, zone, "WARNING", distance)
-			log.Printf("⚠️ WARNING! Drone %d is %.1fm from restricted zone '%s'",
-				flight.DroneId, distance, zone.Name)
-		} else if distance <= float64(zone.Radius)+WARNING_DISTANCE {
-			// ИНФОРМАЦИЯ - зеленая зона
-			fp.sendRestrictedZoneAlert(flight, zone, "INFO", distance)
-			log.Printf("ℹ️ INFO: Drone %d is %.1fm from restricted zone '%s'",
-				flight.DroneId, distance, zone.Name)
+		distanceToBorder := distanceToCenter - float64(zone.Radius)
+
+		if distanceToBorder <= STOP_DISTANCE {
+			log.Printf("PROXIMITY ALERT! Drone %d is %.1f m from zone '%s' border (stop distance: %.1f m)",
+				flight.DroneId, distanceToBorder, zone.Name, STOP_DISTANCE)
+			fp.stopFlightAndRemoveApplication(flight, zone, distanceToBorder)
+			return true
 		}
 	}
+
+	return false
 }
 
-func (fp *FlightProcessor) sendRestrictedZoneAlert(flight *structures.ActiveFlight, zone structures.RestrictedZone, alertLevel string, distance float64) {
-	err := fp.grpcClient.NotifyRestrictedZoneProximity(context.Background(),
-		flight.ApplicationId,
-		flight.DroneId,
-		zone,
-		alertLevel,
-		distance,
-		flight.CurrentPosition,
-	)
+func (fp *FlightProcessor) completeFlight(flight *structures.ActiveFlight) {
+	log.Printf("Completing flight for application %d", flight.ApplicationId)
 
+	flight.CurrentPosition.RouteProgress = 100.0
+
+	fp.clearAlertsForFlight(flight.ApplicationId)
+
+	err := fp.repo.UpdateApplicationStatus(flight.ApplicationId, structures.StatusCompleted, "")
 	if err != nil {
-		log.Printf("❌ Error sending restricted zone alert: %v", err)
+		log.Printf("Error updating application status to completed: %v", err)
 	}
+
+	ctx, cancel := context.WithTimeout(fp.ctx, 10*time.Second)
+	defer cancel()
+
+	log.Printf("Sending COMPLETED status notification for application %d", flight.ApplicationId)
+	fp.notifyStatusUpdate(ctx, flight.ApplicationId, structures.StatusCompleted, "Flight completed successfully. Drone has reached destination.", "")
+
+	err = fp.grpcClient.UpdateDronePosition(ctx, flight.CurrentPosition)
+	if err != nil {
+		log.Printf("Failed to send final position update: %v", err)
+	}
+
+	log.Printf("Sending flight completed notification for application %d", flight.ApplicationId)
+	err = fp.grpcClient.NotifyFlightCompleted(ctx, flight, "completed")
+	if err != nil {
+		log.Printf("FAILED to send flight completed notification: %v", err)
+	} else {
+		log.Printf("SUCCESS: Flight completed notification sent for application %d", flight.ApplicationId)
+	}
+
+	fp.mutex.Lock()
+	delete(fp.activeFlights, flight.ApplicationId)
+	fp.mutex.Unlock()
 }
 
 func (fp *FlightProcessor) calculateNewPosition(current structures.DronePosition, target structures.RoutePoint) structures.DronePosition {
-	// Рассчитываем направление к цели
 	deltaLat := target.Latitude - current.Latitude
 	deltaLon := target.Longitude - current.Longitude
 	deltaAlt := target.Altitude - current.Altitude
 
 	distance := math.Sqrt(deltaLat*deltaLat + deltaLon*deltaLon)
 
-	// Скорость в градусах в секунду
-	// 1 градус ≈ 111320 метров на экваторе
 	speedDegPerSec := fp.config.FlightSpeedMS / 111320.0
 
 	if distance < speedDegPerSec {
-		// Достигли точки
 		return structures.DronePosition{
 			ApplicationId: current.ApplicationId,
 			DroneId:       current.DroneId,
@@ -444,13 +660,11 @@ func (fp *FlightProcessor) calculateNewPosition(current structures.DronePosition
 		}
 	}
 
-	// Движемся к цели
 	ratio := speedDegPerSec / distance
 	newLat := current.Latitude + deltaLat*ratio
 	newLon := current.Longitude + deltaLon*ratio
 	newAlt := current.Altitude + deltaAlt*ratio
 
-	// Рассчитываем курс
 	heading := math.Atan2(deltaLon, deltaLat) * 180 / math.Pi
 	if heading < 0 {
 		heading += 360
@@ -468,29 +682,24 @@ func (fp *FlightProcessor) calculateNewPosition(current structures.DronePosition
 	}
 }
 
-// 🔧 ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ расчет прогресса маршрута
 func (fp *FlightProcessor) calculateRouteProgress(flight *structures.ActiveFlight) float64 {
 	if len(flight.Route) < 2 {
 		return 100.0
 	}
 
-	// Общее расстояние всего маршрута
 	totalDistance := fp.calculateRouteDistanceMeters(flight.Route)
 	if totalDistance <= 0 {
 		return 100.0
 	}
 
-	// Расстояние от стартовой точки до текущей позиции
 	startPoint := flight.Route[0]
 	currentDistanceFromStart := fp.calculateDistanceMeters(
 		startPoint.Latitude, startPoint.Longitude,
 		flight.CurrentPosition.Latitude, flight.CurrentPosition.Longitude,
 	)
 
-	// Рассчитываем прогресс как отношение пройденного расстояния к общему
 	progress := (currentDistanceFromStart / totalDistance) * 100
 
-	// Ограничиваем от 0 до 100
 	if progress < 0 {
 		progress = 0
 	}
@@ -501,34 +710,8 @@ func (fp *FlightProcessor) calculateRouteProgress(flight *structures.ActiveFligh
 	return progress
 }
 
-func (fp *FlightProcessor) completeFlight(flight *structures.ActiveFlight) {
-	log.Printf("🏁 Completing flight for application %d", flight.ApplicationId)
-
-	// Устанавливаем прогресс 100% при завершении
-	flight.CurrentPosition.RouteProgress = 100.0
-
-	// Обновляем статус
-	err := fp.repo.UpdateApplicationStatus(flight.ApplicationId, structures.StatusCompleted, "")
-	if err != nil {
-		log.Printf("❌ Error updating application status to completed: %v", err)
-	}
-
-	// Отправляем финальное обновление позиции с 100%
-	fp.grpcClient.UpdateDronePosition(context.Background(), flight.CurrentPosition)
-
-	// Отправляем уведомление о завершении
-	fp.grpcClient.NotifyFlightCompleted(context.Background(), flight, "completed")
-
-	// Удаляем из активных полетов
-	fp.mutex.Lock()
-	delete(fp.activeFlights, flight.ApplicationId)
-	fp.mutex.Unlock()
-}
-
-// Расчет расстояния в МЕТРАХ
 func (fp *FlightProcessor) calculateDistanceMeters(lat1, lon1, lat2, lon2 float64) float64 {
-	// Формула гаверсинуса для расчета расстояния между двумя точками
-	const R = 6371000 // Радиус Земли в МЕТРАХ
+	const R = 6371000
 
 	dLat := (lat2 - lat1) * math.Pi / 180
 	dLon := (lon2 - lon1) * math.Pi / 180
@@ -538,7 +721,7 @@ func (fp *FlightProcessor) calculateDistanceMeters(lat1, lon1, lat2, lon2 float6
 			math.Sin(dLon/2)*math.Sin(dLon/2)
 
 	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
-	return R * c // Возвращаем в метрах
+	return R * c
 }
 
 func (fp *FlightProcessor) calculateRouteDistanceMeters(route []structures.RoutePoint) float64 {
@@ -555,5 +738,16 @@ func (fp *FlightProcessor) calculateRouteDistanceMeters(route []structures.Route
 		totalDistance += distance
 	}
 
-	return totalDistance // В метрах
+	return totalDistance
+}
+
+func (fp *FlightProcessor) clearAlertsForFlight(applicationId int) {
+	fp.alertsMutex.Lock()
+	defer fp.alertsMutex.Unlock()
+
+	for key := range fp.sentAlerts {
+		if len(key) > 0 && key[0:1] == string(rune(applicationId)) {
+			delete(fp.sentAlerts, key)
+		}
+	}
 }

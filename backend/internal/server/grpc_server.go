@@ -9,7 +9,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Интерфейс для WebSocket Hub
 type WebSocketHub interface {
 	Broadcast(message []byte)
 	BroadcastJSON(data interface{}) error
@@ -27,9 +26,8 @@ func NewFlightNotificationServer(wsHub WebSocketHub) *FlightNotificationServer {
 }
 
 func (s *FlightNotificationServer) NotifyStatusUpdate(ctx context.Context, req *pb.StatusUpdateRequest) (*pb.StatusUpdateResponse, error) {
-	log.Printf("🔔 Received status update for application %d: %s", req.ApplicationId, req.Status)
+	log.Printf("Received status update for application %d: %s", req.ApplicationId, req.Status)
 
-	// Создаем уведомление для фронтенда
 	notification := map[string]interface{}{
 		"type":             "status_update",
 		"application_id":   req.ApplicationId,
@@ -39,24 +37,22 @@ func (s *FlightNotificationServer) NotifyStatusUpdate(ctx context.Context, req *
 		"timestamp":        req.Timestamp.AsTime(),
 	}
 
-	// Отправляем через WebSocket
 	err := s.websocketHub.BroadcastJSON(notification)
 	if err != nil {
-		log.Printf("❌ Error broadcasting status update: %v", err)
+		log.Printf("Error broadcasting status update: %v", err)
 		return &pb.StatusUpdateResponse{
 			Success:      false,
 			ErrorMessage: "Failed to broadcast notification",
 		}, nil
 	}
 
-	log.Printf("✅ Status update broadcasted successfully")
+	log.Printf("Status update broadcasted successfully")
 	return &pb.StatusUpdateResponse{Success: true}, nil
 }
 
 func (s *FlightNotificationServer) NotifyFlightStarted(ctx context.Context, req *pb.FlightStartedRequest) (*pb.FlightStartedResponse, error) {
-	log.Printf("🚁 Received flight started notification for application %d", req.ApplicationId)
+	log.Printf("Received flight started notification for application %d", req.ApplicationId)
 
-	// Конвертируем данные для фронтенда
 	notification := map[string]interface{}{
 		"type":               "flight_started",
 		"application_id":     req.ApplicationId,
@@ -70,19 +66,18 @@ func (s *FlightNotificationServer) NotifyFlightStarted(ctx context.Context, req 
 
 	err := s.websocketHub.BroadcastJSON(notification)
 	if err != nil {
-		log.Printf("❌ Error broadcasting flight started: %v", err)
+		log.Printf("Error broadcasting flight started: %v", err)
 		return &pb.FlightStartedResponse{
 			Success:      false,
 			ErrorMessage: "Failed to broadcast notification",
 		}, nil
 	}
 
-	log.Printf("✅ Flight started notification broadcasted successfully")
+	log.Printf("Flight started notification broadcasted successfully")
 	return &pb.FlightStartedResponse{Success: true}, nil
 }
 
 func (s *FlightNotificationServer) UpdateDronePosition(ctx context.Context, req *pb.DronePositionRequest) (*pb.DronePositionResponse, error) {
-	// Отправляем обновление позиции на фронтенд
 	notification := map[string]interface{}{
 		"type":           "position_update",
 		"application_id": req.ApplicationId,
@@ -98,7 +93,7 @@ func (s *FlightNotificationServer) UpdateDronePosition(ctx context.Context, req 
 
 	err := s.websocketHub.BroadcastJSON(notification)
 	if err != nil {
-		log.Printf("❌ Error broadcasting position update: %v", err)
+		log.Printf("Error broadcasting position update: %v", err)
 		return &pb.DronePositionResponse{
 			Success:      false,
 			ErrorMessage: "Failed to broadcast notification",
@@ -109,7 +104,7 @@ func (s *FlightNotificationServer) UpdateDronePosition(ctx context.Context, req 
 }
 
 func (s *FlightNotificationServer) NotifyFlightCompleted(ctx context.Context, req *pb.FlightCompletedRequest) (*pb.FlightCompletedResponse, error) {
-	log.Printf("🏁 Received flight completed notification for application %d", req.ApplicationId)
+	log.Printf("Received flight completed notification for application %d", req.ApplicationId)
 
 	notification := map[string]interface{}{
 		"type":              "flight_completed",
@@ -122,23 +117,21 @@ func (s *FlightNotificationServer) NotifyFlightCompleted(ctx context.Context, re
 
 	err := s.websocketHub.BroadcastJSON(notification)
 	if err != nil {
-		log.Printf("❌ Error broadcasting flight completed: %v", err)
+		log.Printf("Error broadcasting flight completed: %v", err)
 		return &pb.FlightCompletedResponse{
 			Success:      false,
 			ErrorMessage: "Failed to broadcast notification",
 		}, nil
 	}
 
-	log.Printf("✅ Flight completed notification broadcasted successfully")
+	log.Printf("Flight completed notification broadcasted successfully")
 	return &pb.FlightCompletedResponse{Success: true}, nil
 }
 
-// 🚨 НОВЫЙ МЕТОД: Обработка уведомлений о близости к запретным зонам
 func (s *FlightNotificationServer) NotifyRestrictedZoneProximity(ctx context.Context, req *pb.RestrictedZoneAlertRequest) (*pb.RestrictedZoneAlertResponse, error) {
-	log.Printf("🚨 Received restricted zone alert for drone %d: %s level, %.1fm from zone '%s'",
+	log.Printf("Received restricted zone alert for drone %d: %s level, %.1fm from zone '%s'",
 		req.DroneId, req.AlertLevel, req.Distance, req.ZoneName)
 
-	// Создаем уведомление для фронтенда
 	notification := map[string]interface{}{
 		"type":           "restricted_zone_alert",
 		"application_id": req.ApplicationId,
@@ -153,21 +146,19 @@ func (s *FlightNotificationServer) NotifyRestrictedZoneProximity(ctx context.Con
 		"timestamp":      req.Timestamp.AsTime(),
 	}
 
-	// Отправляем через WebSocket
 	err := s.websocketHub.BroadcastJSON(notification)
 	if err != nil {
-		log.Printf("❌ Error broadcasting restricted zone alert: %v", err)
+		log.Printf("Error broadcasting restricted zone alert: %v", err)
 		return &pb.RestrictedZoneAlertResponse{
 			Success:      false,
 			ErrorMessage: "Failed to broadcast notification",
 		}, nil
 	}
 
-	log.Printf("✅ Restricted zone alert broadcasted successfully")
+	log.Printf("Restricted zone alert broadcasted successfully")
 	return &pb.RestrictedZoneAlertResponse{Success: true}, nil
 }
 
-// Вспомогательные функции для конвертации
 func convertRouteFromProto(protoRoute []*pb.RoutePoint) []map[string]interface{} {
 	route := make([]map[string]interface{}, len(protoRoute))
 	for i, point := range protoRoute {
@@ -197,7 +188,6 @@ func convertPositionFromProto(protoPos *pb.DronePosition) map[string]interface{}
 	}
 }
 
-// Функция для запуска gRPC сервера
 func StartGRPCServer(wsHub WebSocketHub, port string) error {
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
@@ -209,6 +199,6 @@ func StartGRPCServer(wsHub WebSocketHub, port string) error {
 
 	pb.RegisterFlightNotificationServiceServer(grpcServer, flightServer)
 
-	log.Printf("🚀 gRPC server starting on port %s", port)
+	log.Printf("gRPC server starting on port %s", port)
 	return grpcServer.Serve(lis)
 }

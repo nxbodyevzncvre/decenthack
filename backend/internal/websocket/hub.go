@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/websocket/v2"
@@ -33,6 +34,17 @@ func (h *Hub) Run() {
 			h.mutex.Lock()
 			h.clients[conn] = true
 			h.mutex.Unlock()
+
+			welcomeMsg := map[string]interface{}{
+				"type":      "connection",
+				"message":   "WebSocket connected successfully",
+				"timestamp": time.Now(),
+				"clients":   len(h.clients),
+			}
+			if data, err := json.Marshal(welcomeMsg); err == nil {
+				conn.WriteMessage(websocket.TextMessage, data)
+			}
+
 			log.Printf("WebSocket client connected. Total clients: %d", len(h.clients))
 
 		case conn := <-h.unregister:
@@ -77,19 +89,33 @@ func (h *Hub) BroadcastJSON(data interface{}) error {
 }
 
 func (h *Hub) HandleWebSocket(c *websocket.Conn) {
+	remoteAddr := c.RemoteAddr().String()
+	log.Printf("New WebSocket connection from %s", remoteAddr)
+
 	h.register <- c
 
 	defer func() {
+		log.Printf("Closing WebSocket connection from %s", remoteAddr)
 		h.unregister <- c
 	}()
 
 	for {
-		_, _, err := c.ReadMessage()
+		messageType, message, err := c.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
+				log.Printf("WebSocket error from %s: %v", remoteAddr, err)
+			} else {
+				log.Printf("WebSocket connection closed normally from %s", remoteAddr)
 			}
 			break
+		}
+
+		if messageType == websocket.TextMessage {
+			log.Printf("Received message from %s: %s", remoteAddr, string(message))
+		}
+
+		if messageType == websocket.PingMessage {
+			c.WriteMessage(websocket.PongMessage, nil)
 		}
 	}
 }

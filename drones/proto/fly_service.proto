@@ -6,12 +6,9 @@ option go_package = "github.com/qwaq-dev/drones/proto/flight";
 
 import "google/protobuf/timestamp.proto";
 
-// Сервис для коммуникации между Flight Processor и Main Backend
 service FlightNotificationService {
-  // Уведомление об изменении статуса заявки
   rpc NotifyStatusUpdate(StatusUpdateRequest) returns (StatusUpdateResponse);
   
-  // Уведомление о начале полета
   rpc NotifyFlightStarted(FlightStartedRequest) returns (FlightStartedResponse);
   
   rpc UpdateDronePosition(DronePositionRequest) returns (DronePositionResponse);
@@ -21,7 +18,6 @@ service FlightNotificationService {
   rpc NotifyRestrictedZoneProximity(RestrictedZoneAlertRequest) returns (RestrictedZoneAlertResponse);
 }
 
-// Запрос на обновление статуса
 message StatusUpdateRequest {
   int32 application_id = 1;
   string status = 2;
@@ -35,7 +31,6 @@ message StatusUpdateResponse {
   string error_message = 2;
 }
 
-// Запрос о начале полета
 message FlightStartedRequest {
   int32 application_id = 1;
   int32 drone_id = 2;
@@ -51,7 +46,6 @@ message FlightStartedResponse {
   string error_message = 2;
 }
 
-// Запрос на обновление позиции
 message DronePositionRequest {
   int32 application_id = 1;
   int32 drone_id = 2;
@@ -69,7 +63,6 @@ message DronePositionResponse {
   string error_message = 2;
 }
 
-// Запрос о завершении полета
 message FlightCompletedRequest {
   int32 application_id = 1;
   int32 drone_id = 2;
@@ -83,7 +76,6 @@ message FlightCompletedResponse {
   string error_message = 2;
 }
 
-// 🚨 НОВЫЕ СООБЩЕНИЯ: Уведомления о запретных зонах
 message RestrictedZoneAlertRequest {
   int32 application_id = 1;
   int32 drone_id = 2;
@@ -102,7 +94,6 @@ message RestrictedZoneAlertResponse {
   string error_message = 2;
 }
 
-// Вспомогательные сообщения
 message RoutePoint {
   int32 id = 1;
   double latitude = 2;

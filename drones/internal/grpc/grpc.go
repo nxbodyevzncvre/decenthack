@@ -36,7 +36,6 @@ func (nc *NotificationClient) Close() error {
 	return nc.conn.Close()
 }
 
-// Уведомление об изменении статуса
 func (nc *NotificationClient) NotifyStatusUpdate(ctx context.Context, applicationId int, status structures.Status, message, rejectionReason string) error {
 	req := &pb.StatusUpdateRequest{
 		ApplicationId:   int32(applicationId),
@@ -59,9 +58,7 @@ func (nc *NotificationClient) NotifyStatusUpdate(ctx context.Context, applicatio
 	return nil
 }
 
-// Уведомление о начале полета
 func (nc *NotificationClient) NotifyFlightStarted(ctx context.Context, flight *structures.ActiveFlight) error {
-	// Конвертируем маршрут
 	route := make([]*pb.RoutePoint, len(flight.Route))
 	for i, point := range flight.Route {
 		route[i] = &pb.RoutePoint{
@@ -74,7 +71,6 @@ func (nc *NotificationClient) NotifyFlightStarted(ctx context.Context, flight *s
 		}
 	}
 
-	// Конвертируем текущую позицию
 	currentPos := &pb.DronePosition{
 		ApplicationId: int32(flight.CurrentPosition.ApplicationId),
 		DroneId:       int32(flight.CurrentPosition.DroneId),
@@ -110,7 +106,6 @@ func (nc *NotificationClient) NotifyFlightStarted(ctx context.Context, flight *s
 	return nil
 }
 
-// Обновление позиции дрона
 func (nc *NotificationClient) UpdateDronePosition(ctx context.Context, position structures.DronePosition) error {
 	req := &pb.DronePositionRequest{
 		ApplicationId: int32(position.ApplicationId),
@@ -136,7 +131,6 @@ func (nc *NotificationClient) UpdateDronePosition(ctx context.Context, position 
 	return nil
 }
 
-// Уведомление о завершении полета
 func (nc *NotificationClient) NotifyFlightCompleted(ctx context.Context, flight *structures.ActiveFlight, completionStatus string) error {
 	finalPos := &pb.DronePosition{
 		ApplicationId: int32(flight.CurrentPosition.ApplicationId),
@@ -171,14 +165,13 @@ func (nc *NotificationClient) NotifyFlightCompleted(ctx context.Context, flight 
 	return nil
 }
 
-// 🚨 НОВЫЙ МЕТОД: Уведомление о близости к запретной зоне
 func (nc *NotificationClient) NotifyRestrictedZoneProximity(ctx context.Context, applicationId, droneId int, zone structures.RestrictedZone, alertLevel string, distance float64, position structures.DronePosition) error {
 	req := &pb.RestrictedZoneAlertRequest{
 		ApplicationId: int32(applicationId),
 		DroneId:       int32(droneId),
 		ZoneName:      zone.Name,
 		ZoneLatitude:  zone.Latitude,
-		ZoneLongitude: zone.Longtitude, // Используем ваше поле с ошибкой
+		ZoneLongitude: zone.Longtitude,
 		ZoneRadius:    int32(zone.Radius),
 		AlertLevel:    alertLevel,
 		Distance:      distance,
@@ -205,7 +198,7 @@ func (nc *NotificationClient) NotifyRestrictedZoneProximity(ctx context.Context,
 		return fmt.Errorf("restricted zone proximity notification failed: %s", resp.ErrorMessage)
 	}
 
-	log.Printf("🚨 Restricted zone alert sent: drone %d, %s level, %.1fm from zone '%s'",
+	log.Printf("Restricted zone alert sent: drone %d, %s level, %.1fm from zone '%s'",
 		droneId, alertLevel, distance, zone.Name)
 	return nil
 }

@@ -6,7 +6,7 @@
     import AddDrone from "@/app/components/AddDrone/AddDrone.jsx"
     import DangerZones from "@/app/components/DangerZones/DangerZones.jsx"
     import DroneInfo from "@/app/components/DroneInfo/DroneInfo.jsx"
-    import DroneMap from "@/app/components/DroneMap/DroneMap.jsx"
+    import DroneTracker from "@/app/components/DroneTracker/DroneTracker.jsx"
     import FlightApplications from "@/app/components/FlightApplications/FlightApplications.jsx"
     import { useRouter } from 'next/navigation'
     import axios from "axios"
@@ -126,7 +126,7 @@
 
           {/* Основной контент */}
           <div className="flex-1">
-            {activeTab === "map" && <DroneMap />}
+            {activeTab === "map" && <DroneTracker/>}
             {activeTab === "drones" && <DroneInfo />}
             {activeTab === "pilot" && <PilotInfo />}
             {activeTab === "applications" && <FlightApplications />}

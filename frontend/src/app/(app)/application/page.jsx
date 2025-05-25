@@ -366,14 +366,14 @@ export default function CreateApplication() {
                   </label>
                   <p className="text-xs text-gray-500 mb-2">Кликните на карту, чтобы выбрать местоположение</p>
                   <div className="mt-1 bg-gray-100 rounded-lg h-80 overflow-hidden">
-                    <MapContainer center={[51.12, 71.43]} zoom={13} scrollWheelZoom={true} className="h-full w-full">
+                    <MapContainer center={[51.130246, 71.402378]} zoom={13} scrollWheelZoom={true} className="h-full w-full">
                       <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
                       <Circle
                         key={"baza"}
-                        center={[51.11990, 71.48048]}
+                        center={[51.15545, 71.41216]}
                         radius={200}
                         pathOptions={{
                           color: "black",
@@ -455,7 +455,7 @@ export default function CreateApplication() {
                     />
                     <Circle
                         key={"baza"}
-                        center={[51.11990, 71.48048]}
+                        center={[51.15545, 71.41216]}
                         radius={200}
                         pathOptions={{
                           color: "black",
