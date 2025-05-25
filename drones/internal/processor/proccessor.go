@@ -138,7 +138,7 @@ func (fp *FlightProcessor) checkPendingApplications() {
 }
 
 func (fp *FlightProcessor) processApplication(app structures.Application) {
-	log.Printf("Processing application %d", app.Id)
+	log.Printf("Processing application %d (tested: %d)", app.Id, app.Tested)
 
 	select {
 	case <-fp.ctx.Done():
@@ -363,6 +363,8 @@ func (fp *FlightProcessor) startFlight(app structures.Application) {
 
 	fullRoute := fp.createFullRoute(destinationPoints[0])
 
+	demoMode := app.Tested == 1
+
 	flight := &structures.ActiveFlight{
 		ApplicationId:   app.Id,
 		DroneId:         app.Drone_id,
@@ -380,6 +382,10 @@ func (fp *FlightProcessor) startFlight(app structures.Application) {
 			Timestamp:     time.Now(),
 			RouteProgress: 0.0,
 		},
+
+		State:           structures.FlightStateActive,
+		FlightStartTime: time.Now(),
+		DemoMode:        demoMode,
 	}
 
 	totalDistance := fp.calculateRouteDistanceMeters(fullRoute)
@@ -401,6 +407,11 @@ func (fp *FlightProcessor) startFlight(app structures.Application) {
 	ctx, cancel := context.WithTimeout(fp.ctx, 15*time.Second)
 	defer cancel()
 
+	demoModeStatus := "OFF"
+	if demoMode {
+		demoModeStatus = "ON"
+	}
+
 	log.Printf("Sending EXECUTING status notification for application %d", app.Id)
 	fp.notifyStatusUpdate(ctx, app.Id, structures.StatusExecuting, fmt.Sprintf("Flight started successfully. Estimated duration: %v", flightDuration), "")
 
@@ -412,10 +423,79 @@ func (fp *FlightProcessor) startFlight(app structures.Application) {
 		log.Printf("SUCCESS: Flight started notification sent for application %d", app.Id)
 	}
 
-	log.Printf("Started flight for application %d", app.Id)
+	log.Printf("Started flight for application %d (DEMO MODE: %s)", app.Id, demoModeStatus)
 	log.Printf("   Distance: %.1f m (%.2f km)", totalDistance, totalDistance/1000)
 	log.Printf("   Speed: %.1f m/s (%.1f km/h)", fp.config.FlightSpeedMS, fp.config.FlightSpeedMS*3.6)
 	log.Printf("   Duration: %v", flightDuration)
+
+	if demoMode {
+		log.Printf("   Demo pause scheduled after 30 seconds")
+	} else {
+		log.Printf("   Normal flight mode - no demo pauses")
+	}
+}
+
+func (fp *FlightProcessor) checkDemoPause(flight *structures.ActiveFlight) bool {
+	if !flight.DemoMode {
+		return false
+	}
+
+	timeSinceStart := time.Since(flight.FlightStartTime)
+
+	if timeSinceStart >= 30*time.Second && timeSinceStart < 31*time.Second && flight.State == structures.FlightStateActive {
+		fp.pauseFlight(flight, "Demo pause for 10 seconds (tested=1)")
+		return true
+	}
+
+	if flight.State == structures.FlightStatePaused && flight.PauseStartTime != nil {
+		timeSincePause := time.Since(*flight.PauseStartTime)
+		if timeSincePause >= 10*time.Second {
+			fp.resumeFlight(flight, "Demo pause completed (tested=1)")
+			flight.DemoMode = false
+			log.Printf("Demo mode disabled for flight %d after first pause cycle", flight.ApplicationId)
+			return true
+		}
+	}
+
+	return false
+}
+
+func (fp *FlightProcessor) pauseFlight(flight *structures.ActiveFlight, reason string) {
+	log.Printf("PAUSING flight %d: %s", flight.ApplicationId, reason)
+
+	now := time.Now()
+	flight.State = structures.FlightStatePaused
+	flight.PauseStartTime = &now
+	flight.CurrentPosition.Speed = 0
+
+	ctx, cancel := context.WithTimeout(fp.ctx, 10*time.Second)
+	defer cancel()
+
+	err := fp.grpcClient.NotifyFlightPaused(ctx, flight, reason)
+	if err != nil {
+		log.Printf("FAILED to send flight paused notification: %v", err)
+	} else {
+		log.Printf("SUCCESS: Flight paused notification sent for application %d", flight.ApplicationId)
+	}
+}
+
+func (fp *FlightProcessor) resumeFlight(flight *structures.ActiveFlight, reason string) {
+	log.Printf("RESUMING flight %d: %s", flight.ApplicationId, reason)
+
+	now := time.Now()
+	flight.State = structures.FlightStateActive
+	flight.PauseEndTime = &now
+	flight.CurrentPosition.Speed = fp.config.FlightSpeedMS
+
+	ctx, cancel := context.WithTimeout(fp.ctx, 10*time.Second)
+	defer cancel()
+
+	err := fp.grpcClient.NotifyFlightResumed(ctx, flight, reason)
+	if err != nil {
+		log.Printf("FAILED to send flight resumed notification: %v", err)
+	} else {
+		log.Printf("SUCCESS: Flight resumed notification sent for application %d", flight.ApplicationId)
+	}
 }
 
 func (fp *FlightProcessor) forceCompleteFlight(flight *structures.ActiveFlight, reason string) {
@@ -527,6 +607,14 @@ func (fp *FlightProcessor) updateFlightPositions() {
 }
 
 func (fp *FlightProcessor) updateSingleFlight(flight *structures.ActiveFlight) {
+	if flight.DemoMode && fp.checkDemoPause(flight) {
+		return
+	}
+
+	if flight.State == structures.FlightStatePaused {
+		return
+	}
+
 	if flight.CurrentWaypoint >= len(flight.Route) {
 		fp.completeFlight(flight)
 		return
@@ -570,8 +658,16 @@ func (fp *FlightProcessor) updateSingleFlight(flight *structures.ActiveFlight) {
 	}
 
 	if time.Now().Unix()%2 == 0 {
-		log.Printf("Drone %d: lat=%.6f, lon=%.6f, progress=%.1f%%, waypoint=%d/%d, distance_to_target=%.1fm",
-			flight.DroneId, flight.CurrentPosition.Latitude, flight.CurrentPosition.Longitude,
+		stateInfo := ""
+		if flight.State == structures.FlightStatePaused {
+			stateInfo = " [PAUSED]"
+		}
+		demoInfo := ""
+		if flight.DemoMode {
+			demoInfo = " [DEMO]"
+		}
+		log.Printf("Drone %d%s%s: lat=%.6f, lon=%.6f, progress=%.1f%%, waypoint=%d/%d, distance_to_target=%.1fm",
+			flight.DroneId, stateInfo, demoInfo, flight.CurrentPosition.Latitude, flight.CurrentPosition.Longitude,
 			flight.CurrentPosition.RouteProgress, flight.CurrentWaypoint, len(flight.Route)-1, distance)
 	}
 }

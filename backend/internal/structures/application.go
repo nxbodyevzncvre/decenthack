@@ -37,6 +37,7 @@ type CreateApplicationRequest struct {
 	Longtitude          float64   `json:"longtitude"`
 	Altitude            float64   `json:"altitude"`
 	PointOrder          int       `json:"point_order,omitempty"`
+	Tested              int       `json:"tested"`
 }
 
 type AllPitlotsApl struct {

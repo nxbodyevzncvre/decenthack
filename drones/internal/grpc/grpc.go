@@ -202,3 +202,71 @@ func (nc *NotificationClient) NotifyRestrictedZoneProximity(ctx context.Context,
 		droneId, alertLevel, distance, zone.Name)
 	return nil
 }
+
+func (nc *NotificationClient) NotifyFlightPaused(ctx context.Context, flight *structures.ActiveFlight, reason string) error {
+	pausePos := &pb.DronePosition{
+		ApplicationId: int32(flight.CurrentPosition.ApplicationId),
+		DroneId:       int32(flight.CurrentPosition.DroneId),
+		Latitude:      flight.CurrentPosition.Latitude,
+		Longitude:     flight.CurrentPosition.Longitude,
+		Altitude:      flight.CurrentPosition.Altitude,
+		Speed:         0,
+		Heading:       flight.CurrentPosition.Heading,
+		RouteProgress: flight.CurrentPosition.RouteProgress,
+		Timestamp:     timestamppb.New(flight.CurrentPosition.Timestamp),
+	}
+
+	req := &pb.FlightPausedRequest{
+		ApplicationId: int32(flight.ApplicationId),
+		DroneId:       int32(flight.DroneId),
+		PausePosition: pausePos,
+		PauseTime:     timestamppb.Now(),
+		PauseReason:   reason,
+	}
+
+	resp, err := nc.client.NotifyFlightPaused(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to notify flight paused: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("flight paused notification failed: %s", resp.ErrorMessage)
+	}
+
+	log.Printf("Flight paused notification sent for application %d", flight.ApplicationId)
+	return nil
+}
+
+func (nc *NotificationClient) NotifyFlightResumed(ctx context.Context, flight *structures.ActiveFlight, reason string) error {
+	resumePos := &pb.DronePosition{
+		ApplicationId: int32(flight.CurrentPosition.ApplicationId),
+		DroneId:       int32(flight.CurrentPosition.DroneId),
+		Latitude:      flight.CurrentPosition.Latitude,
+		Longitude:     flight.CurrentPosition.Longitude,
+		Altitude:      flight.CurrentPosition.Altitude,
+		Speed:         flight.CurrentPosition.Speed,
+		Heading:       flight.CurrentPosition.Heading,
+		RouteProgress: flight.CurrentPosition.RouteProgress,
+		Timestamp:     timestamppb.New(flight.CurrentPosition.Timestamp),
+	}
+
+	req := &pb.FlightResumedRequest{
+		ApplicationId:  int32(flight.ApplicationId),
+		DroneId:        int32(flight.DroneId),
+		ResumePosition: resumePos,
+		ResumeTime:     timestamppb.Now(),
+		ResumeReason:   reason,
+	}
+
+	resp, err := nc.client.NotifyFlightResumed(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to notify flight resumed: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("flight resumed notification failed: %s", resp.ErrorMessage)
+	}
+
+	log.Printf("Flight resumed notification sent for application %d", flight.ApplicationId)
+	return nil
+}

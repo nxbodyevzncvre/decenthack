@@ -3,7 +3,12 @@ package structures
 import "time"
 
 type Status string
+type FlightState string
 
+const (
+	FlightStateActive FlightState = "active"
+	FlightStatePaused FlightState = "paused"
+)
 const (
 	StatusPending    Status = "pending"
 	StatusProcessing Status = "processing"
@@ -31,13 +36,19 @@ type ActiveFlight struct {
 	DroneId          int           `json:"drone_id"`
 	PilotId          int           `json:"pilot_id"`
 	Route            []RoutePoint  `json:"route"`
-	CurrentPosition  DronePosition `json:"current_position"`
 	CurrentWaypoint  int           `json:"current_waypoint"`
 	StartTime        time.Time     `json:"start_time"`
 	EstimatedEndTime time.Time     `json:"estimated_end_time"`
 	Status           Status        `json:"status"`
-}
+	CurrentPosition  DronePosition `json:"current_position"`
 
+	// Новые поля для паузы
+	State           FlightState `json:"state"`
+	PauseStartTime  *time.Time  `json:"pause_start_time,omitempty"`
+	PauseEndTime    *time.Time  `json:"pause_end_time,omitempty"`
+	FlightStartTime time.Time   `json:"flight_start_time"` // Время начала полета для расчета паузы
+	DemoMode        bool        `json:"demo_mode"`         // Флаг демо-режима
+}
 type RoutePoint struct {
 	Id            int     `json:"route_id"`
 	Latitude      float64 `json:"latitude"`

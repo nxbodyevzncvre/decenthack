@@ -19,9 +19,9 @@ func (a *ApplicationRepository) CreateApplication(req structures.CreateApplicati
 	}
 
 	res, err := tx.Exec(`
-		INSERT INTO Application (start_date, end_date, status, rejection_reason, restricted_zone_check, created_at, last_update, pilot_id, drone_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		req.StartDate, req.EndDate, req.Status, req.RejectionReason, req.RestrictedZoneCheck, time.Now(), time.Now(), req.PilotId, req.DroneId)
+		INSERT INTO Application (start_date, end_date, status, rejection_reason, restricted_zone_check, created_at, last_update, pilot_id, drone_id, tested)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		req.StartDate, req.EndDate, req.Status, req.RejectionReason, req.RestrictedZoneCheck, time.Now(), time.Now(), req.PilotId, req.DroneId, req.Tested)
 	if err != nil {
 		tx.Rollback()
 		return err

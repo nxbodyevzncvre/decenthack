@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package flight;
 
-option go_package = "github.com/nxbodyevzncvre/decenthack/proto/flight";
+option go_package = "proto/flight";
 
 import "google/protobuf/timestamp.proto";
 
@@ -16,6 +16,10 @@ service FlightNotificationService {
   rpc NotifyFlightCompleted(FlightCompletedRequest) returns (FlightCompletedResponse);
   
   rpc NotifyRestrictedZoneProximity(RestrictedZoneAlertRequest) returns (RestrictedZoneAlertResponse);
+  
+  rpc NotifyFlightPaused(FlightPausedRequest) returns (FlightPausedResponse);
+  
+  rpc NotifyFlightResumed(FlightResumedRequest) returns (FlightResumedResponse);
 }
 
 message StatusUpdateRequest {
@@ -68,7 +72,7 @@ message FlightCompletedRequest {
   int32 drone_id = 2;
   DronePosition final_position = 3;
   google.protobuf.Timestamp completion_time = 4;
-  string completion_status = 5; // completed, cancelled, emergency_landing
+  string completion_status = 5; 
 }
 
 message FlightCompletedResponse {
@@ -83,13 +87,39 @@ message RestrictedZoneAlertRequest {
   double zone_latitude = 4;
   double zone_longitude = 5;
   int32 zone_radius = 6;
-  string alert_level = 7; // INFO, WARNING, DANGER
+  string alert_level = 7; 
   double distance = 8;
   DronePosition drone_position = 9;
   google.protobuf.Timestamp timestamp = 10;
 }
 
 message RestrictedZoneAlertResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message FlightPausedRequest {
+  int32 application_id = 1;
+  int32 drone_id = 2;
+  DronePosition pause_position = 3;
+  google.protobuf.Timestamp pause_time = 4;
+  string pause_reason = 5;
+}
+
+message FlightPausedResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message FlightResumedRequest {
+  int32 application_id = 1;
+  int32 drone_id = 2;
+  DronePosition resume_position = 3;
+  google.protobuf.Timestamp resume_time = 4;
+  string resume_reason = 5;
+}
+
+message FlightResumedResponse {
   bool success = 1;
   string error_message = 2;
 }

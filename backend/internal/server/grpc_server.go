@@ -159,6 +159,56 @@ func (s *FlightNotificationServer) NotifyRestrictedZoneProximity(ctx context.Con
 	return &pb.RestrictedZoneAlertResponse{Success: true}, nil
 }
 
+func (s *FlightNotificationServer) NotifyFlightPaused(ctx context.Context, req *pb.FlightPausedRequest) (*pb.FlightPausedResponse, error) {
+	log.Printf("Received flight paused notification for application %d: %s", req.ApplicationId, req.PauseReason)
+
+	notification := map[string]interface{}{
+		"type":           "flight_paused",
+		"application_id": req.ApplicationId,
+		"drone_id":       req.DroneId,
+		"pause_position": convertPositionFromProto(req.PausePosition),
+		"pause_time":     req.PauseTime.AsTime(),
+		"pause_reason":   req.PauseReason,
+	}
+
+	err := s.websocketHub.BroadcastJSON(notification)
+	if err != nil {
+		log.Printf("Error broadcasting flight paused: %v", err)
+		return &pb.FlightPausedResponse{
+			Success:      false,
+			ErrorMessage: "Failed to broadcast notification",
+		}, nil
+	}
+
+	log.Printf("Flight paused notification broadcasted successfully")
+	return &pb.FlightPausedResponse{Success: true}, nil
+}
+
+func (s *FlightNotificationServer) NotifyFlightResumed(ctx context.Context, req *pb.FlightResumedRequest) (*pb.FlightResumedResponse, error) {
+	log.Printf("Received flight resumed notification for application %d: %s", req.ApplicationId, req.ResumeReason)
+
+	notification := map[string]interface{}{
+		"type":            "flight_resumed",
+		"application_id":  req.ApplicationId,
+		"drone_id":        req.DroneId,
+		"resume_position": convertPositionFromProto(req.ResumePosition),
+		"resume_time":     req.ResumeTime.AsTime(),
+		"resume_reason":   req.ResumeReason,
+	}
+
+	err := s.websocketHub.BroadcastJSON(notification)
+	if err != nil {
+		log.Printf("Error broadcasting flight resumed: %v", err)
+		return &pb.FlightResumedResponse{
+			Success:      false,
+			ErrorMessage: "Failed to broadcast notification",
+		}, nil
+	}
+
+	log.Printf("Flight resumed notification broadcasted successfully")
+	return &pb.FlightResumedResponse{Success: true}, nil
+}
+
 func convertRouteFromProto(protoRoute []*pb.RoutePoint) []map[string]interface{} {
 	route := make([]map[string]interface{}, len(protoRoute))
 	for i, point := range protoRoute {

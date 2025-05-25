@@ -31,12 +31,57 @@ func (r *Repository) Close() error {
 	return r.db.Close()
 }
 
+// Метод для получения конкретной заявки по ID с полем tested
+func (r *Repository) GetApplicationById(id int) (*structures.Application, error) {
+	query := `
+		SELECT application_id, drone_id, pilot_id, status, COALESCE(tested, 0) as tested
+		FROM Application 
+		WHERE application_id = ?
+	`
+
+	var app structures.Application
+	err := r.db.QueryRow(query, id).Scan(&app.Id, &app.Drone_id, &app.Pilot_id, &app.Status, &app.Tested)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("application with id %d not found", id)
+		}
+		return nil, fmt.Errorf("failed to get application: %w", err)
+	}
+
+	return &app, nil
+}
+
+func (r *Repository) UpdateApplicationTested(id int, tested int) error {
+	query := `
+		UPDATE Application 
+		SET tested = ?, last_update = NOW() 
+		WHERE application_id = ?
+	`
+
+	result, err := r.db.Exec(query, tested, id)
+	if err != nil {
+		return fmt.Errorf("failed to update application tested flag: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("no application found with id %d", id)
+	}
+
+	log.Printf("Updated application %d tested flag to %d", id, tested)
+	return nil
+}
+
 func (r *Repository) GetPendingApplications() ([]structures.Application, error) {
 	query := `
 		SELECT application_id, start_date, end_date, status, 
 		       COALESCE(rejection_reason, '') as rejection_reason,
 		       COALESCE(restricted_zone_check, 0) as restricted_zone_check,
-		       created_at, last_update, pilot_id, drone_id
+		       created_at, last_update, pilot_id, drone_id, tested
 		FROM Application 
 		WHERE status = 'pending'
 	`
@@ -55,7 +100,7 @@ func (r *Repository) GetPendingApplications() ([]structures.Application, error) 
 		err := rows.Scan(
 			&app.Id, &app.Start_date, &app.End_date, &app.Status,
 			&app.Rejection_reason, &app.Restricted_zone_check,
-			&createdAtStr, &lastUpdateStr, &app.Pilot_id, &app.Drone_id,
+			&createdAtStr, &lastUpdateStr, &app.Pilot_id, &app.Drone_id, &app.Tested,
 		)
 		if err != nil {
 			log.Printf("Error scanning application: %v", err)

@@ -2,6 +2,8 @@
 
     import { useState, useEffect } from "react"
     import Link from "next/link"
+    import { useAuth } from "@/app/hooks/useAuth"
+
     import { MapPin, User, Plane, AlertTriangle, Plus, Info, LogOut } from "lucide-react"
     import AddDrone from "@/app/components/AddDrone/AddDrone.jsx"
     import DangerZones from "@/app/components/DangerZones/DangerZones.jsx"
@@ -19,6 +21,7 @@
 
 
     export default function Dashboard() {
+        useAuth()
         const [activeTab, setActiveTab] = useState("map")
         const [name, setName] = useState("")
         const [error, setError] = useState(null);

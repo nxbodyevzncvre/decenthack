@@ -460,7 +460,7 @@ type FlightCompletedRequest struct {
 	DroneId          int32                  `protobuf:"varint,2,opt,name=drone_id,json=droneId,proto3" json:"drone_id,omitempty"`
 	FinalPosition    *DronePosition         `protobuf:"bytes,3,opt,name=final_position,json=finalPosition,proto3" json:"final_position,omitempty"`
 	CompletionTime   *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=completion_time,json=completionTime,proto3" json:"completion_time,omitempty"`
-	CompletionStatus string                 `protobuf:"bytes,5,opt,name=completion_status,json=completionStatus,proto3" json:"completion_status,omitempty"` // completed, cancelled, emergency_landing
+	CompletionStatus string                 `protobuf:"bytes,5,opt,name=completion_status,json=completionStatus,proto3" json:"completion_status,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -590,7 +590,7 @@ type RestrictedZoneAlertRequest struct {
 	ZoneLatitude  float64                `protobuf:"fixed64,4,opt,name=zone_latitude,json=zoneLatitude,proto3" json:"zone_latitude,omitempty"`
 	ZoneLongitude float64                `protobuf:"fixed64,5,opt,name=zone_longitude,json=zoneLongitude,proto3" json:"zone_longitude,omitempty"`
 	ZoneRadius    int32                  `protobuf:"varint,6,opt,name=zone_radius,json=zoneRadius,proto3" json:"zone_radius,omitempty"`
-	AlertLevel    string                 `protobuf:"bytes,7,opt,name=alert_level,json=alertLevel,proto3" json:"alert_level,omitempty"` // INFO, WARNING, DANGER
+	AlertLevel    string                 `protobuf:"bytes,7,opt,name=alert_level,json=alertLevel,proto3" json:"alert_level,omitempty"`
 	Distance      float64                `protobuf:"fixed64,8,opt,name=distance,proto3" json:"distance,omitempty"`
 	DronePosition *DronePosition         `protobuf:"bytes,9,opt,name=drone_position,json=dronePosition,proto3" json:"drone_position,omitempty"`
 	Timestamp     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
@@ -750,6 +750,262 @@ func (x *RestrictedZoneAlertResponse) GetErrorMessage() string {
 	return ""
 }
 
+type FlightPausedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ApplicationId int32                  `protobuf:"varint,1,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
+	DroneId       int32                  `protobuf:"varint,2,opt,name=drone_id,json=droneId,proto3" json:"drone_id,omitempty"`
+	PausePosition *DronePosition         `protobuf:"bytes,3,opt,name=pause_position,json=pausePosition,proto3" json:"pause_position,omitempty"`
+	PauseTime     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=pause_time,json=pauseTime,proto3" json:"pause_time,omitempty"`
+	PauseReason   string                 `protobuf:"bytes,5,opt,name=pause_reason,json=pauseReason,proto3" json:"pause_reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FlightPausedRequest) Reset() {
+	*x = FlightPausedRequest{}
+	mi := &file_proto_fly_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FlightPausedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FlightPausedRequest) ProtoMessage() {}
+
+func (x *FlightPausedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_fly_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FlightPausedRequest.ProtoReflect.Descriptor instead.
+func (*FlightPausedRequest) Descriptor() ([]byte, []int) {
+	return file_proto_fly_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *FlightPausedRequest) GetApplicationId() int32 {
+	if x != nil {
+		return x.ApplicationId
+	}
+	return 0
+}
+
+func (x *FlightPausedRequest) GetDroneId() int32 {
+	if x != nil {
+		return x.DroneId
+	}
+	return 0
+}
+
+func (x *FlightPausedRequest) GetPausePosition() *DronePosition {
+	if x != nil {
+		return x.PausePosition
+	}
+	return nil
+}
+
+func (x *FlightPausedRequest) GetPauseTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.PauseTime
+	}
+	return nil
+}
+
+func (x *FlightPausedRequest) GetPauseReason() string {
+	if x != nil {
+		return x.PauseReason
+	}
+	return ""
+}
+
+type FlightPausedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FlightPausedResponse) Reset() {
+	*x = FlightPausedResponse{}
+	mi := &file_proto_fly_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FlightPausedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FlightPausedResponse) ProtoMessage() {}
+
+func (x *FlightPausedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_fly_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FlightPausedResponse.ProtoReflect.Descriptor instead.
+func (*FlightPausedResponse) Descriptor() ([]byte, []int) {
+	return file_proto_fly_service_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *FlightPausedResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *FlightPausedResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+type FlightResumedRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ApplicationId  int32                  `protobuf:"varint,1,opt,name=application_id,json=applicationId,proto3" json:"application_id,omitempty"`
+	DroneId        int32                  `protobuf:"varint,2,opt,name=drone_id,json=droneId,proto3" json:"drone_id,omitempty"`
+	ResumePosition *DronePosition         `protobuf:"bytes,3,opt,name=resume_position,json=resumePosition,proto3" json:"resume_position,omitempty"`
+	ResumeTime     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=resume_time,json=resumeTime,proto3" json:"resume_time,omitempty"`
+	ResumeReason   string                 `protobuf:"bytes,5,opt,name=resume_reason,json=resumeReason,proto3" json:"resume_reason,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *FlightResumedRequest) Reset() {
+	*x = FlightResumedRequest{}
+	mi := &file_proto_fly_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FlightResumedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FlightResumedRequest) ProtoMessage() {}
+
+func (x *FlightResumedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_fly_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FlightResumedRequest.ProtoReflect.Descriptor instead.
+func (*FlightResumedRequest) Descriptor() ([]byte, []int) {
+	return file_proto_fly_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *FlightResumedRequest) GetApplicationId() int32 {
+	if x != nil {
+		return x.ApplicationId
+	}
+	return 0
+}
+
+func (x *FlightResumedRequest) GetDroneId() int32 {
+	if x != nil {
+		return x.DroneId
+	}
+	return 0
+}
+
+func (x *FlightResumedRequest) GetResumePosition() *DronePosition {
+	if x != nil {
+		return x.ResumePosition
+	}
+	return nil
+}
+
+func (x *FlightResumedRequest) GetResumeTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResumeTime
+	}
+	return nil
+}
+
+func (x *FlightResumedRequest) GetResumeReason() string {
+	if x != nil {
+		return x.ResumeReason
+	}
+	return ""
+}
+
+type FlightResumedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FlightResumedResponse) Reset() {
+	*x = FlightResumedResponse{}
+	mi := &file_proto_fly_service_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FlightResumedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FlightResumedResponse) ProtoMessage() {}
+
+func (x *FlightResumedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_fly_service_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FlightResumedResponse.ProtoReflect.Descriptor instead.
+func (*FlightResumedResponse) Descriptor() ([]byte, []int) {
+	return file_proto_fly_service_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *FlightResumedResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *FlightResumedResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
 type RoutePoint struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            int32                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -764,7 +1020,7 @@ type RoutePoint struct {
 
 func (x *RoutePoint) Reset() {
 	*x = RoutePoint{}
-	mi := &file_proto_fly_service_proto_msgTypes[10]
+	mi := &file_proto_fly_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -776,7 +1032,7 @@ func (x *RoutePoint) String() string {
 func (*RoutePoint) ProtoMessage() {}
 
 func (x *RoutePoint) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_fly_service_proto_msgTypes[10]
+	mi := &file_proto_fly_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -789,7 +1045,7 @@ func (x *RoutePoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoutePoint.ProtoReflect.Descriptor instead.
 func (*RoutePoint) Descriptor() ([]byte, []int) {
-	return file_proto_fly_service_proto_rawDescGZIP(), []int{10}
+	return file_proto_fly_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RoutePoint) GetId() int32 {
@@ -851,7 +1107,7 @@ type DronePosition struct {
 
 func (x *DronePosition) Reset() {
 	*x = DronePosition{}
-	mi := &file_proto_fly_service_proto_msgTypes[11]
+	mi := &file_proto_fly_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -863,7 +1119,7 @@ func (x *DronePosition) String() string {
 func (*DronePosition) ProtoMessage() {}
 
 func (x *DronePosition) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_fly_service_proto_msgTypes[11]
+	mi := &file_proto_fly_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -876,7 +1132,7 @@ func (x *DronePosition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DronePosition.ProtoReflect.Descriptor instead.
 func (*DronePosition) Descriptor() ([]byte, []int) {
-	return file_proto_fly_service_proto_rawDescGZIP(), []int{11}
+	return file_proto_fly_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DronePosition) GetApplicationId() int32 {
@@ -1006,6 +1262,26 @@ const file_proto_fly_service_proto_rawDesc = "" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\"\\\n" +
 	"\x1bRestrictedZoneAlertResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
+	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"\xf3\x01\n" +
+	"\x13FlightPausedRequest\x12%\n" +
+	"\x0eapplication_id\x18\x01 \x01(\x05R\rapplicationId\x12\x19\n" +
+	"\bdrone_id\x18\x02 \x01(\x05R\adroneId\x12<\n" +
+	"\x0epause_position\x18\x03 \x01(\v2\x15.flight.DronePositionR\rpausePosition\x129\n" +
+	"\n" +
+	"pause_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tpauseTime\x12!\n" +
+	"\fpause_reason\x18\x05 \x01(\tR\vpauseReason\"U\n" +
+	"\x14FlightPausedResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
+	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"\xfa\x01\n" +
+	"\x14FlightResumedRequest\x12%\n" +
+	"\x0eapplication_id\x18\x01 \x01(\x05R\rapplicationId\x12\x19\n" +
+	"\bdrone_id\x18\x02 \x01(\x05R\adroneId\x12>\n" +
+	"\x0fresume_position\x18\x03 \x01(\v2\x15.flight.DronePositionR\x0eresumePosition\x12;\n" +
+	"\vresume_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"resumeTime\x12#\n" +
+	"\rresume_reason\x18\x05 \x01(\tR\fresumeReason\"V\n" +
+	"\x15FlightResumedResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
 	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"\xba\x01\n" +
 	"\n" +
 	"RoutePoint\x12\x0e\n" +
@@ -1025,13 +1301,15 @@ const file_proto_fly_service_proto_rawDesc = "" +
 	"\x05speed\x18\x06 \x01(\x01R\x05speed\x12\x18\n" +
 	"\aheading\x18\a \x01(\x01R\aheading\x12%\n" +
 	"\x0eroute_progress\x18\b \x01(\x01R\rrouteProgress\x128\n" +
-	"\ttimestamp\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp2\xd8\x03\n" +
+	"\ttimestamp\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp2\xfd\x04\n" +
 	"\x19FlightNotificationService\x12O\n" +
 	"\x12NotifyStatusUpdate\x12\x1b.flight.StatusUpdateRequest\x1a\x1c.flight.StatusUpdateResponse\x12R\n" +
 	"\x13NotifyFlightStarted\x12\x1c.flight.FlightStartedRequest\x1a\x1d.flight.FlightStartedResponse\x12R\n" +
 	"\x13UpdateDronePosition\x12\x1c.flight.DronePositionRequest\x1a\x1d.flight.DronePositionResponse\x12X\n" +
 	"\x15NotifyFlightCompleted\x12\x1e.flight.FlightCompletedRequest\x1a\x1f.flight.FlightCompletedResponse\x12h\n" +
-	"\x1dNotifyRestrictedZoneProximity\x12\".flight.RestrictedZoneAlertRequest\x1a#.flight.RestrictedZoneAlertResponseB)Z'github.com/qwaq-dev/drones/proto/flightb\x06proto3"
+	"\x1dNotifyRestrictedZoneProximity\x12\".flight.RestrictedZoneAlertRequest\x1a#.flight.RestrictedZoneAlertResponse\x12O\n" +
+	"\x12NotifyFlightPaused\x12\x1b.flight.FlightPausedRequest\x1a\x1c.flight.FlightPausedResponse\x12R\n" +
+	"\x13NotifyFlightResumed\x12\x1c.flight.FlightResumedRequest\x1a\x1d.flight.FlightResumedResponseB\x0eZ\fproto/flightb\x06proto3"
 
 var (
 	file_proto_fly_service_proto_rawDescOnce sync.Once
@@ -1045,7 +1323,7 @@ func file_proto_fly_service_proto_rawDescGZIP() []byte {
 	return file_proto_fly_service_proto_rawDescData
 }
 
-var file_proto_fly_service_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_proto_fly_service_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_proto_fly_service_proto_goTypes = []any{
 	(*StatusUpdateRequest)(nil),         // 0: flight.StatusUpdateRequest
 	(*StatusUpdateResponse)(nil),        // 1: flight.StatusUpdateResponse
@@ -1057,37 +1335,49 @@ var file_proto_fly_service_proto_goTypes = []any{
 	(*FlightCompletedResponse)(nil),     // 7: flight.FlightCompletedResponse
 	(*RestrictedZoneAlertRequest)(nil),  // 8: flight.RestrictedZoneAlertRequest
 	(*RestrictedZoneAlertResponse)(nil), // 9: flight.RestrictedZoneAlertResponse
-	(*RoutePoint)(nil),                  // 10: flight.RoutePoint
-	(*DronePosition)(nil),               // 11: flight.DronePosition
-	(*timestamppb.Timestamp)(nil),       // 12: google.protobuf.Timestamp
+	(*FlightPausedRequest)(nil),         // 10: flight.FlightPausedRequest
+	(*FlightPausedResponse)(nil),        // 11: flight.FlightPausedResponse
+	(*FlightResumedRequest)(nil),        // 12: flight.FlightResumedRequest
+	(*FlightResumedResponse)(nil),       // 13: flight.FlightResumedResponse
+	(*RoutePoint)(nil),                  // 14: flight.RoutePoint
+	(*DronePosition)(nil),               // 15: flight.DronePosition
+	(*timestamppb.Timestamp)(nil),       // 16: google.protobuf.Timestamp
 }
 var file_proto_fly_service_proto_depIdxs = []int32{
-	12, // 0: flight.StatusUpdateRequest.timestamp:type_name -> google.protobuf.Timestamp
-	10, // 1: flight.FlightStartedRequest.route:type_name -> flight.RoutePoint
-	11, // 2: flight.FlightStartedRequest.current_position:type_name -> flight.DronePosition
-	12, // 3: flight.FlightStartedRequest.start_time:type_name -> google.protobuf.Timestamp
-	12, // 4: flight.FlightStartedRequest.estimated_end_time:type_name -> google.protobuf.Timestamp
-	12, // 5: flight.DronePositionRequest.timestamp:type_name -> google.protobuf.Timestamp
-	11, // 6: flight.FlightCompletedRequest.final_position:type_name -> flight.DronePosition
-	12, // 7: flight.FlightCompletedRequest.completion_time:type_name -> google.protobuf.Timestamp
-	11, // 8: flight.RestrictedZoneAlertRequest.drone_position:type_name -> flight.DronePosition
-	12, // 9: flight.RestrictedZoneAlertRequest.timestamp:type_name -> google.protobuf.Timestamp
-	12, // 10: flight.DronePosition.timestamp:type_name -> google.protobuf.Timestamp
-	0,  // 11: flight.FlightNotificationService.NotifyStatusUpdate:input_type -> flight.StatusUpdateRequest
-	2,  // 12: flight.FlightNotificationService.NotifyFlightStarted:input_type -> flight.FlightStartedRequest
-	4,  // 13: flight.FlightNotificationService.UpdateDronePosition:input_type -> flight.DronePositionRequest
-	6,  // 14: flight.FlightNotificationService.NotifyFlightCompleted:input_type -> flight.FlightCompletedRequest
-	8,  // 15: flight.FlightNotificationService.NotifyRestrictedZoneProximity:input_type -> flight.RestrictedZoneAlertRequest
-	1,  // 16: flight.FlightNotificationService.NotifyStatusUpdate:output_type -> flight.StatusUpdateResponse
-	3,  // 17: flight.FlightNotificationService.NotifyFlightStarted:output_type -> flight.FlightStartedResponse
-	5,  // 18: flight.FlightNotificationService.UpdateDronePosition:output_type -> flight.DronePositionResponse
-	7,  // 19: flight.FlightNotificationService.NotifyFlightCompleted:output_type -> flight.FlightCompletedResponse
-	9,  // 20: flight.FlightNotificationService.NotifyRestrictedZoneProximity:output_type -> flight.RestrictedZoneAlertResponse
-	16, // [16:21] is the sub-list for method output_type
-	11, // [11:16] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	16, // 0: flight.StatusUpdateRequest.timestamp:type_name -> google.protobuf.Timestamp
+	14, // 1: flight.FlightStartedRequest.route:type_name -> flight.RoutePoint
+	15, // 2: flight.FlightStartedRequest.current_position:type_name -> flight.DronePosition
+	16, // 3: flight.FlightStartedRequest.start_time:type_name -> google.protobuf.Timestamp
+	16, // 4: flight.FlightStartedRequest.estimated_end_time:type_name -> google.protobuf.Timestamp
+	16, // 5: flight.DronePositionRequest.timestamp:type_name -> google.protobuf.Timestamp
+	15, // 6: flight.FlightCompletedRequest.final_position:type_name -> flight.DronePosition
+	16, // 7: flight.FlightCompletedRequest.completion_time:type_name -> google.protobuf.Timestamp
+	15, // 8: flight.RestrictedZoneAlertRequest.drone_position:type_name -> flight.DronePosition
+	16, // 9: flight.RestrictedZoneAlertRequest.timestamp:type_name -> google.protobuf.Timestamp
+	15, // 10: flight.FlightPausedRequest.pause_position:type_name -> flight.DronePosition
+	16, // 11: flight.FlightPausedRequest.pause_time:type_name -> google.protobuf.Timestamp
+	15, // 12: flight.FlightResumedRequest.resume_position:type_name -> flight.DronePosition
+	16, // 13: flight.FlightResumedRequest.resume_time:type_name -> google.protobuf.Timestamp
+	16, // 14: flight.DronePosition.timestamp:type_name -> google.protobuf.Timestamp
+	0,  // 15: flight.FlightNotificationService.NotifyStatusUpdate:input_type -> flight.StatusUpdateRequest
+	2,  // 16: flight.FlightNotificationService.NotifyFlightStarted:input_type -> flight.FlightStartedRequest
+	4,  // 17: flight.FlightNotificationService.UpdateDronePosition:input_type -> flight.DronePositionRequest
+	6,  // 18: flight.FlightNotificationService.NotifyFlightCompleted:input_type -> flight.FlightCompletedRequest
+	8,  // 19: flight.FlightNotificationService.NotifyRestrictedZoneProximity:input_type -> flight.RestrictedZoneAlertRequest
+	10, // 20: flight.FlightNotificationService.NotifyFlightPaused:input_type -> flight.FlightPausedRequest
+	12, // 21: flight.FlightNotificationService.NotifyFlightResumed:input_type -> flight.FlightResumedRequest
+	1,  // 22: flight.FlightNotificationService.NotifyStatusUpdate:output_type -> flight.StatusUpdateResponse
+	3,  // 23: flight.FlightNotificationService.NotifyFlightStarted:output_type -> flight.FlightStartedResponse
+	5,  // 24: flight.FlightNotificationService.UpdateDronePosition:output_type -> flight.DronePositionResponse
+	7,  // 25: flight.FlightNotificationService.NotifyFlightCompleted:output_type -> flight.FlightCompletedResponse
+	9,  // 26: flight.FlightNotificationService.NotifyRestrictedZoneProximity:output_type -> flight.RestrictedZoneAlertResponse
+	11, // 27: flight.FlightNotificationService.NotifyFlightPaused:output_type -> flight.FlightPausedResponse
+	13, // 28: flight.FlightNotificationService.NotifyFlightResumed:output_type -> flight.FlightResumedResponse
+	22, // [22:29] is the sub-list for method output_type
+	15, // [15:22] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_proto_fly_service_proto_init() }
@@ -1101,7 +1391,7 @@ func file_proto_fly_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_fly_service_proto_rawDesc), len(file_proto_fly_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

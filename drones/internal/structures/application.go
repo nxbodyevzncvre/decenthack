@@ -13,6 +13,7 @@ type Application struct {
 	Last_update           time.Time `json:"last_update, omitempty"`
 	Pilot_id              int       `json:"pilot_id"`
 	Drone_id              int       `json:"drone_id"`
+	Tested                int       `json:"tested" db:"tested"`
 }
 
 type CreateApplicationRequest struct {

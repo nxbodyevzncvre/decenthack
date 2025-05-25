@@ -24,6 +24,8 @@ const (
 	FlightNotificationService_UpdateDronePosition_FullMethodName           = "/flight.FlightNotificationService/UpdateDronePosition"
 	FlightNotificationService_NotifyFlightCompleted_FullMethodName         = "/flight.FlightNotificationService/NotifyFlightCompleted"
 	FlightNotificationService_NotifyRestrictedZoneProximity_FullMethodName = "/flight.FlightNotificationService/NotifyRestrictedZoneProximity"
+	FlightNotificationService_NotifyFlightPaused_FullMethodName            = "/flight.FlightNotificationService/NotifyFlightPaused"
+	FlightNotificationService_NotifyFlightResumed_FullMethodName           = "/flight.FlightNotificationService/NotifyFlightResumed"
 )
 
 // FlightNotificationServiceClient is the client API for FlightNotificationService service.
@@ -35,6 +37,8 @@ type FlightNotificationServiceClient interface {
 	UpdateDronePosition(ctx context.Context, in *DronePositionRequest, opts ...grpc.CallOption) (*DronePositionResponse, error)
 	NotifyFlightCompleted(ctx context.Context, in *FlightCompletedRequest, opts ...grpc.CallOption) (*FlightCompletedResponse, error)
 	NotifyRestrictedZoneProximity(ctx context.Context, in *RestrictedZoneAlertRequest, opts ...grpc.CallOption) (*RestrictedZoneAlertResponse, error)
+	NotifyFlightPaused(ctx context.Context, in *FlightPausedRequest, opts ...grpc.CallOption) (*FlightPausedResponse, error)
+	NotifyFlightResumed(ctx context.Context, in *FlightResumedRequest, opts ...grpc.CallOption) (*FlightResumedResponse, error)
 }
 
 type flightNotificationServiceClient struct {
@@ -95,6 +99,26 @@ func (c *flightNotificationServiceClient) NotifyRestrictedZoneProximity(ctx cont
 	return out, nil
 }
 
+func (c *flightNotificationServiceClient) NotifyFlightPaused(ctx context.Context, in *FlightPausedRequest, opts ...grpc.CallOption) (*FlightPausedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FlightPausedResponse)
+	err := c.cc.Invoke(ctx, FlightNotificationService_NotifyFlightPaused_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *flightNotificationServiceClient) NotifyFlightResumed(ctx context.Context, in *FlightResumedRequest, opts ...grpc.CallOption) (*FlightResumedResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FlightResumedResponse)
+	err := c.cc.Invoke(ctx, FlightNotificationService_NotifyFlightResumed_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // FlightNotificationServiceServer is the server API for FlightNotificationService service.
 // All implementations must embed UnimplementedFlightNotificationServiceServer
 // for forward compatibility.
@@ -104,6 +128,8 @@ type FlightNotificationServiceServer interface {
 	UpdateDronePosition(context.Context, *DronePositionRequest) (*DronePositionResponse, error)
 	NotifyFlightCompleted(context.Context, *FlightCompletedRequest) (*FlightCompletedResponse, error)
 	NotifyRestrictedZoneProximity(context.Context, *RestrictedZoneAlertRequest) (*RestrictedZoneAlertResponse, error)
+	NotifyFlightPaused(context.Context, *FlightPausedRequest) (*FlightPausedResponse, error)
+	NotifyFlightResumed(context.Context, *FlightResumedRequest) (*FlightResumedResponse, error)
 	mustEmbedUnimplementedFlightNotificationServiceServer()
 }
 
@@ -128,6 +154,12 @@ func (UnimplementedFlightNotificationServiceServer) NotifyFlightCompleted(contex
 }
 func (UnimplementedFlightNotificationServiceServer) NotifyRestrictedZoneProximity(context.Context, *RestrictedZoneAlertRequest) (*RestrictedZoneAlertResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method NotifyRestrictedZoneProximity not implemented")
+}
+func (UnimplementedFlightNotificationServiceServer) NotifyFlightPaused(context.Context, *FlightPausedRequest) (*FlightPausedResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NotifyFlightPaused not implemented")
+}
+func (UnimplementedFlightNotificationServiceServer) NotifyFlightResumed(context.Context, *FlightResumedRequest) (*FlightResumedResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method NotifyFlightResumed not implemented")
 }
 func (UnimplementedFlightNotificationServiceServer) mustEmbedUnimplementedFlightNotificationServiceServer() {
 }
@@ -241,6 +273,42 @@ func _FlightNotificationService_NotifyRestrictedZoneProximity_Handler(srv interf
 	return interceptor(ctx, in, info, handler)
 }
 
+func _FlightNotificationService_NotifyFlightPaused_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlightPausedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FlightNotificationServiceServer).NotifyFlightPaused(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FlightNotificationService_NotifyFlightPaused_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FlightNotificationServiceServer).NotifyFlightPaused(ctx, req.(*FlightPausedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _FlightNotificationService_NotifyFlightResumed_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FlightResumedRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(FlightNotificationServiceServer).NotifyFlightResumed(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: FlightNotificationService_NotifyFlightResumed_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(FlightNotificationServiceServer).NotifyFlightResumed(ctx, req.(*FlightResumedRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // FlightNotificationService_ServiceDesc is the grpc.ServiceDesc for FlightNotificationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -267,6 +335,14 @@ var FlightNotificationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "NotifyRestrictedZoneProximity",
 			Handler:    _FlightNotificationService_NotifyRestrictedZoneProximity_Handler,
+		},
+		{
+			MethodName: "NotifyFlightPaused",
+			Handler:    _FlightNotificationService_NotifyFlightPaused_Handler,
+		},
+		{
+			MethodName: "NotifyFlightResumed",
+			Handler:    _FlightNotificationService_NotifyFlightResumed_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

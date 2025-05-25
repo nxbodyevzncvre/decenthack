@@ -128,17 +128,6 @@ export default function FlightApplications() {
           </div>
         </div>
 
-        {error && (
-          <div className="p-4 bg-yellow-50 border-l-4 border-yellow-400">
-            <div className="flex">
-              <AlertCircle className="h-5 w-5 text-yellow-400" />
-              <div className="ml-3">
-                <p className="text-sm text-yellow-700">{error}</p>
-                <p className="text-xs text-yellow-600 mt-1">Показаны тестовые данные</p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {applications.length === 0 ? (
           <div className="p-8 text-center">
